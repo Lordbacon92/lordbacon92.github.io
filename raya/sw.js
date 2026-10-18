@@ -1,5 +1,5 @@
 // Raya – Offline-Cache: erst Netz (immer aktuell), bei fehlender Verbindung aus dem Cache
-const V = 'raya-v5';
+const V = 'raya-v6';
 const ASSETS = ['./', 'index.html', 'style.css', 'sprites.js', 'game.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'vt323.woff2', 'press-start-2p.woff2',
   'raya-sit.png', 'raya-sit34.png', 'raya-stand.png', 'raya-side.png', 'raya-side-small.png',
