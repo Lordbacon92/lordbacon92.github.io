@@ -155,6 +155,7 @@ async function saveEntry({ photo, date, note, category }) {
     M.put(wallet); M.put(rewards); M.put(inv);
     await done;
     EXTRAS.paws = wallet.paws; EXTRAS.owned = owned;
+    cloudChanged();
   } catch (e) {
     try { tx.abort(); } catch (x) { /* schon beendet */ }
     await done.catch(() => {});
@@ -175,6 +176,7 @@ async function deleteEntry(entry) {
   const tx = db.transaction(['photos', 'entries'], 'readwrite'), done = txDone(tx);
   tx.objectStore('entries').delete(entry.id); tx.objectStore('photos').delete(entry.photoId);
   await done;
+  if (window.RayaCloud) RayaCloud.deleted(entry);
 }
 
 /* ---------- Shop ---------- */
@@ -193,7 +195,7 @@ async function buyItem(id) {
   M.put(rewards);
   await done;
   EXTRAS.paws = wallet.paws; EXTRAS.owned = new Set(inv.owned);
-  updatePawBadge();
+  updatePawBadge(); cloudChanged();
 }
 async function setActive(fn) {
   const db = await openDB();
@@ -204,7 +206,38 @@ async function setActive(fn) {
   if (act.outfit && !EXTRAS.owned.has(act.outfit)) act.outfit = null;
   M.put(act); await done;
   EXTRAS.outfit = act.outfit; EXTRAS.decor = new Set(act.decor);
+  cloudChanged();
 }
+
+/* ---------- Schnittstelle für den Cloud-Abgleich (cloud.js) ---------- */
+function cloudChanged() { if (window.RayaCloud) RayaCloud.changed(); }
+const LocalStore = {
+  async exportMeta() {
+    const db = await openDB(); const st = db.transaction('meta').objectStore('meta');
+    const [wallet, rewards, inventory, active] = await Promise.all(['wallet', 'rewards', 'inventory', 'active'].map((k) => getMeta(st, k)));
+    return { wallet, rewards, inventory, active };
+  },
+  async importMeta(m) {
+    const db = await openDB(); const tx = db.transaction('meta', 'readwrite'), done = txDone(tx), M = tx.objectStore('meta');
+    M.put({ ...m.wallet, key: 'wallet' }); M.put({ ...m.rewards, key: 'rewards' }); M.put({ ...m.inventory, key: 'inventory' }); M.put({ ...m.active, key: 'active' });
+    await done;
+    applyExtras(m.wallet, m.inventory, m.active); EXTRAS.ready = true; EXTRAS.failed = false; updatePawBadge();
+  },
+  listEntries,
+  async getPhoto(id) { return getPhoto(id); },
+  async importEntry(entry, photo) {
+    const db = await openDB(); const tx = db.transaction(['photos', 'entries'], 'readwrite'), done = txDone(tx);
+    tx.objectStore('photos').put({ id: entry.photoId, ...photo }); tx.objectStore('entries').put(entry);
+    await done;
+  },
+  async removeEntry(entry) {
+    const db = await openDB(); const tx = db.transaction(['photos', 'entries'], 'readwrite'), done = txDone(tx);
+    tx.objectStore('entries').delete(entry.id); if (entry.photoId) tx.objectStore('photos').delete(entry.photoId);
+    await done;
+  },
+  refresh() { if (dq('#diary').open && !dq('#diary-list').hidden) renderList(); if (dq('#shop').open) renderShop(); },
+};
+window.LocalStore = LocalStore;
 
 /* ============================== Oberfläche ============================== */
 const dq = (s, root = document) => root.querySelector(s);

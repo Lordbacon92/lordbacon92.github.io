@@ -132,7 +132,7 @@ function loadImg(src) {
 }
 function toCanvas(img) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-  c.getContext('2d').drawImage(img, 0, 0); return c;
+  c.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0); return c;
 }
 function closedEyes(img, eyes) {
   const c = toCanvas(img), x = c.getContext('2d');
@@ -576,6 +576,19 @@ $('#infoBtn').addEventListener('click', () => {
   $('#info').showModal();
 });
 $('#closeInfo').addEventListener('click', () => $('#info').close());
+/* Schnittstelle für den Cloud-Abgleich */
+window.rayaGame = {
+  get() { return S; },
+  hasProgress() { const c = S.counts || {}; return (c.fed || 0) + (c.walks || 0) + (c.pets || 0) + (c.games || 0) > 0 || Date.now() - S.born > 12 * HOUR; },
+  apply(ns) {
+    if (!ns || ns.v !== 2) return;
+    S = Object.assign(freshState(), ns);
+    simulate(); save(); stopMoving();
+    if (S.sleeping) placeSleep(); else placeFloor('start');
+    updateUI();
+  },
+};
+
 $('#resetBtn').addEventListener('click', () => {
   if (!confirm('Wirklich neu anfangen? Alle Werte und Rekorde werden zurückgesetzt.')) return;
   S = freshState(); save(); $('#info').close(); placeFloor('start'); updateUI(); toast('Hallo! Ich bin Raya.');
@@ -632,3 +645,13 @@ Promise.all([loadDog(), loadAtlas()]).then(() => { if (S.sleeping) placeSleep();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+/* Vollbild-Knopf (nur wo der Browser es kann und nicht schon als App läuft) */
+(() => {
+  const b = document.getElementById('fsBtn'), el = document.documentElement;
+  if (!b || !el.requestFullscreen || matchMedia('(display-mode: standalone)').matches) return;
+  b.hidden = false;
+  const lab = () => { b.textContent = document.fullscreenElement ? 'Fenster' : 'Vollbild'; };
+  b.addEventListener('click', () => { document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(() => {}); });
+  document.addEventListener('fullscreenchange', lab);
+})();

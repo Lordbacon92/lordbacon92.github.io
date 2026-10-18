@@ -27,7 +27,7 @@ async function loadAtlas() {
   MAP.cells = Uint8Array.from(map.cells, (c) => +c); MAP.depth = Int16Array.from(map.depth);
   for (const [a, b] of map.jumps) { (MAP.jumps.get(a) || MAP.jumps.set(a, []).get(a)).push(b); (MAP.jumps.get(b) || MAP.jumps.set(b, []).get(b)).push(a); }
   const c = document.createElement('canvas'); c.width = RW; c.height = RH;
-  const x = c.getContext('2d'); x.drawImage(dimg, 0, 0);
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(dimg, 0, 0);
   const d = x.getImageData(0, 0, RW, RH).data; MAP.occ = new Int16Array(RW * RH);
   for (let i = 0; i < RW * RH; i++) MAP.occ[i] = d[i * 4] ? d[i * 4] + MAP.occOff : 0;
   MAP.ready = true;
@@ -329,10 +329,10 @@ function drawRaya() {
 }
 
 /* Möbelpixel, die vor Raya stehen, über sie zeichnen (pixelgenau per Tiefenkarte) */
-const occCanvas = document.createElement('canvas'); const occCtx = occCanvas.getContext('2d');
+const occCanvas = document.createElement('canvas'); const occCtx = occCanvas.getContext('2d', { willReadFrequently: true });
 const bgData = {};
 function bgPixels(ph) {
-  if (!bgData[ph]) { const c = document.createElement('canvas'); c.width = RW; c.height = RH; const x = c.getContext('2d'); x.drawImage(ROOM[ph], 0, 0); bgData[ph] = x.getImageData(0, 0, RW, RH).data; }
+  if (!bgData[ph]) { const c = document.createElement('canvas'); c.width = RW; c.height = RH; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(ROOM[ph], 0, 0); bgData[ph] = x.getImageData(0, 0, RW, RH).data; }
   return bgData[ph];
 }
 function drawOccluders(ph, depth) {

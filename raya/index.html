@@ -25,6 +25,7 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <div id="overlay" hidden></div>
   </div>
+  <div class="panel">
   <p id="status">Raya ist glücklich</p>
   <section class="stats" id="stats" aria-label="Werte"></section>
   <section class="actions" id="actions" aria-label="Aktionen"></section>
@@ -32,8 +33,11 @@
     <button id="muteBtn" class="small">Ton an</button>
     <button id="diaryBtn" class="small">Tagebuch</button>
     <button id="shopBtn" class="small">Shop <span id="pawCount">–</span></button>
+    <button id="accBtn" class="small" hidden>Login</button>
     <button id="infoBtn" class="small">Info</button>
+    <button id="fsBtn" class="small" hidden>Vollbild</button>
   </footer>
+  </div>
 </main>
 
 <dialog id="info">
@@ -111,6 +115,28 @@
   <div class="row"><span></span><button id="shopClose" class="small">Schließen</button></div>
 </dialog>
 
+<dialog id="account" aria-labelledby="accTitle">
+  <h2 id="accTitle">Konto</h2>
+  <section id="accOut">
+    <p>Melde dich an, damit Rayas Spielstand, Pfoten, Shop und Tagebuch-Fotos auf all deinen Geräten gleich sind.</p>
+    <button id="accLogin" class="big">Mit Google anmelden</button>
+  </section>
+  <section id="accIn" hidden>
+    <p><b id="accName"></b><br><span id="accMail" class="muted"></span></p>
+    <p id="accSync" class="muted"></p>
+    <div class="row"><button id="accNow" class="small">Jetzt abgleichen</button><button id="accLogout" class="small danger">Abmelden</button></div>
+  </section>
+  <p id="accErr" class="msg err"></p>
+  <div class="row"><span></span><button id="accClose" class="small">Schließen</button></div>
+</dialog>
+
+<dialog id="syncChoice" aria-labelledby="choiceTitle">
+  <h2 id="choiceTitle">Welcher Spielstand?</h2>
+  <p>In deinem Konto ist schon ein Spielstand – und auf diesem Gerät auch. Welchen willst du behalten? Tagebuch-Einträge, Pfoten und Gekauftes werden in jedem Fall zusammengeführt.</p>
+  <button id="choiceCloudBtn" class="big">Aus dem Konto<br><small id="choiceCloud"></small></button>
+  <button id="choiceLocalBtn" class="big">Von diesem Gerät<br><small id="choiceLocal"></small></button>
+</dialog>
+
 <input id="fileCam" type="file" accept="image/*" capture="environment" hidden>
 <input id="fileAny" type="file" accept="image/*" hidden>
 
@@ -120,5 +146,7 @@
 <script src="game.js"></script>
 <script src="diary.js"></script>
 <script>initDiaryUI();</script>
+<script src="firebase-config.js"></script>
+<script type="module" src="cloud.js"></script>
 </body>
 </html>
