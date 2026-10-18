@@ -119,6 +119,25 @@ function rDepth() { return R.perch ? PERCHES[R.perch].depth : (R.jump ? R.jump.d
 function rSort() { return R.perch ? PERCHES[R.perch].sort : (R.jump ? R.jump.sort : R.y); }
 function placeFloor(n = 'R') { Object.assign(R, nodePt(n), { perch: null, path: [], jump: null, task: null }); }
 function placePerch(p) { const P = PERCHES[p]; Object.assign(R, { x: P.x, y: P.y, perch: p, path: [], jump: null }); }
+/* Schlafplatz: Couch – oder das Hundebett, wenn es aufgestellt ist */
+function sleepSpot() { return EXTRAS.decor.has('hundebett') ? { floor: nodePt('F2') } : { perch: 'couch' }; }
+function atSleepSpot() {
+  if (EXTRAS.decor.has('hundebett')) return !R.perch && !R.jump && Math.hypot(R.x - NODES.F2[0], R.y - NODES.F2[1]) < 1;
+  return R.perch === 'couch';
+}
+function placeSleep() { if (EXTRAS.decor.has('hundebett')) placeFloor('F2'); else placePerch('couch'); }
+/* besondere Schlafanimation: Mond und funkelnde Sterne über Raya */
+function drawStarSleep() {
+  const [x0, y0, x1] = R.box, cx = (x0 + x1) / 2;
+  drawSpr('MOON', cx - 30, y0 - 40, false, 2);
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + clock * 0.3, r = 26 + (i % 3) * 10;
+    const sx = cx + Math.cos(a) * r * 1.4, sy = y0 - 6 + Math.sin(a) * r * 0.55;
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(clock * 3 + i * 1.7);
+    drawSpr('SPARK', sx - 5, sy - 5, false, 2);
+  }
+  ctx.globalAlpha = 1;
+}
 function sceneBusy() { return R.path.length > 0 || !!R.jump; }
 function stopMoving() { R.path = []; R.task = null; }
 
@@ -184,7 +203,7 @@ function sceneUpdate(dt) {
 
   const m = mood();
   // Schlafenszeit: auf die Couch
-  if (S.sleeping) { if (R.perch !== 'couch' && !R.path.length) goTo({ perch: 'couch' }); return; }
+  if (S.sleeping) { if (!atSleepSpot() && !R.path.length) goTo(sleepSpot()); return; }
   if (anim) return;
 
   // eigene Entscheidungen
@@ -213,7 +232,7 @@ function scenePose() {
     const f = Math.floor(clock * 7) % 4;
     return { name: ['side', 'side-w1', 'side', 'side-w2'][f], flip: R.dir > 0, dy: f % 2 ? -1 : 0, dx: 0 };
   }
-  if (S.sleeping) return { name: R.perch === 'couch' ? 'lie' : 'sit-closed', flip: true, dy: Math.sin(clock * 1.6) > 0.5 ? 1 : 0, dx: 0 };
+  if (S.sleeping) return { name: atSleepSpot() ? 'lie' : 'sit-closed', flip: true, dy: Math.sin(clock * 1.6) > 0.5 ? 1 : 0, dx: 0 };
   if (anim) {
     const t = anim.t;
     switch (anim.type) {
@@ -241,6 +260,7 @@ function drawRaya() {
   const x = Math.round(R.x - w / 2 + pose.dx), y = Math.round(R.y - h + pose.dy);
   if (pose.flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(ATLAS.img, sx, sy, w, h, -x - w, y, w, h); ctx.restore(); }
   else ctx.drawImage(ATLAS.img, sx, sy, w, h, x, y, w, h);
+  if (EXTRAS.outfit) drawWear(EXTRAS.outfit, pose.name, x, y, w, pose.flip);
   R.box = [x, y, x + w, y + h];
   const sc = hSit(rDepth()) / 90, u = sc > 0.7 ? 2 : 1;
   // Requisiten bei Raya
@@ -282,6 +302,7 @@ function sceneDraw() {
     ctx.fillRect(Math.round(p.x + Math.sin(clock * 6 + i) * 5 * u), Math.round(p.y - 11 * u + Math.cos(clock * 5 + i) * 2), 1, 1);
   } }));
   items.push({ sort: rSort(), raya: true, draw: drawRaya });
+  EXTRAS.decor.forEach((id) => { const it = ITEM_BY_ID[id]; if (it && it.place) items.push({ sort: it.place.sort, draw: () => drawDecor(it) }); });
   OCCLUDERS.forEach((o) => items.push({ sort: o.sort, occ: true, draw: () => { ctx.save(); ctx.clip(o.path); ctx.drawImage(bg, 0, 0); ctx.restore(); } }));
   items.sort((a, b) => a.sort - b.sort);
   // Möbel hinter Raya müssen nicht neu gezeichnet werden
@@ -304,6 +325,7 @@ function sceneDraw() {
       drawSpr('Z', R.box[2] - 12 + k * 14 + i * 3, R.box[1] - 8 - k * 26);
       ctx.globalAlpha = 1;
     }
+    if (EXTRAS.decor.has('sternen-schlaf') && atSleepSpot()) drawStarSleep();
   }
   drawParticles();
 }

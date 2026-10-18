@@ -30,6 +30,8 @@
   <section class="actions" id="actions" aria-label="Aktionen"></section>
   <footer class="foot">
     <button id="muteBtn" class="small">Ton an</button>
+    <button id="diaryBtn" class="small">Tagebuch</button>
+    <button id="shopBtn" class="small">Shop <span id="pawCount">–</span></button>
     <button id="infoBtn" class="small">Info</button>
   </footer>
 </main>
@@ -45,8 +47,78 @@
   </div>
 </dialog>
 
+<dialog id="diary" class="wide" aria-labelledby="diaryTitle">
+  <section id="diary-list">
+    <div class="dhead"><h2 id="diaryTitle">Gassi-Tagebuch</h2><span class="pawbal"><span id="diaryPaws">0</span> Pfoten</span></div>
+    <button id="diaryNew" class="big">+ Neuer Gassigang</button>
+    <div id="diaryState" class="state"></div>
+    <div id="diaryGrid" class="grid"></div>
+    <p class="muted small-note">Fotos werden nur auf diesem Gerät gespeichert – nicht in der Cloud und nicht zwischen Geräten synchronisiert. Wenn du die Browserdaten löschst, sind sie weg.</p>
+    <div class="row"><span></span><button id="diaryClose" class="small">Schließen</button></div>
+  </section>
+
+  <section id="diary-form" hidden>
+    <h2>Neuer Gassigang</h2>
+    <div id="diaryFields">
+      <div id="diaryPick" class="pick">
+        <button id="diaryCam" class="big">Kamera</button>
+        <button id="diaryFile" class="big">Foto wählen</button>
+      </div>
+      <div id="diaryPreview" class="preview" hidden>
+        <img id="diaryPreviewImg" alt="Vorschau">
+        <button id="diaryRepick" class="small">Anderes Foto</button>
+      </div>
+      <p id="diaryMsg" class="msg" role="status" aria-live="polite"></p>
+      <label class="field">Datum <input id="diaryDate" type="date"></label>
+      <label class="field">Notiz <input id="diaryNote" type="text" maxlength="140" placeholder="z. B. Raya hat eine Ente gesehen"></label>
+      <div class="field">Wo wart ihr? <span class="muted">(optional)</span><div id="diaryCats" class="chips"></div></div>
+      <div class="row">
+        <button id="diaryCancel" class="small">Abbrechen</button>
+        <button id="diarySave" class="small primary" disabled>Speichern</button>
+      </div>
+    </div>
+    <div id="diaryReward" class="reward" hidden>
+      <h3>Gespeichert!</h3>
+      <ul id="diaryRewardList"></ul>
+      <p>Pfotenstand: <b id="diaryRewardTotal">0</b></p>
+      <div class="row"><span></span><button id="diaryDone" class="small primary">Zum Tagebuch</button></div>
+    </div>
+  </section>
+
+  <section id="diary-detail" hidden>
+    <img id="detailImg" class="detailimg" alt="">
+    <p class="detailmeta"><b id="detailDate"></b> <span id="detailCat" class="tag"></span></p>
+    <p id="detailNote"></p>
+    <div class="row">
+      <button id="detailBack" class="small">Zurück</button>
+      <button id="detailDelete" class="small danger">Löschen</button>
+    </div>
+    <div id="detailConfirm" class="confirm" hidden>
+      <p>Diesen Eintrag wirklich löschen? Schon erhaltene Pfoten bleiben dir.</p>
+      <div class="row"><button id="detailNo" class="small">Abbrechen</button><button id="detailYes" class="small danger">Ja, löschen</button></div>
+    </div>
+  </section>
+</dialog>
+
+<dialog id="shop" class="wide" aria-labelledby="shopTitle">
+  <div class="dhead"><h2 id="shopTitle">Shop</h2><span class="pawbal"><span id="shopPaws">0</span> Pfoten</span></div>
+  <div class="tabs" role="tablist">
+    <button data-tab="kleidung" class="small">Kleidung</button>
+    <button data-tab="deko" class="small">Deko</button>
+  </div>
+  <div id="shopList" class="shoplist"></div>
+  <p id="shopHint" class="muted"></p>
+  <div class="row"><span></span><button id="shopClose" class="small">Schließen</button></div>
+</dialog>
+
+<input id="fileCam" type="file" accept="image/*" capture="environment" hidden>
+<input id="fileAny" type="file" accept="image/*" hidden>
+
 <script src="sprites.js"></script>
+<script src="items.js"></script>
 <script src="scene.js"></script>
 <script src="game.js"></script>
+<script src="diary.js"></script>
+<script>initDiaryUI();</script>
 </body>
 </html>

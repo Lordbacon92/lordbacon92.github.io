@@ -359,7 +359,7 @@ const ACTIONS = [
       play('wake', 1); sfx.tap(); return;
     }
     if (S.energy > 85) { toast('Raya ist noch gar nicht müde.'); play('nope', 0.6); return; }
-    S.sleeping = true; goTo({ perch: 'couch' }); toast('Licht aus – Raya kuschelt sich auf die Couch.'); sfx.tap();
+    S.sleeping = true; goTo(sleepSpot()); toast(EXTRAS.decor.has('hundebett') ? 'Licht aus – Raya kuschelt sich in ihr Bett.' : 'Licht aus – Raya kuschelt sich auf die Couch.'); sfx.tap();
   } },
 ];
 function pet() {
@@ -611,7 +611,7 @@ updateUI();
 if (firstVisit) toast('Hallo! Ich bin Raya. Kümmerst du dich um mich?', 3600);
 else if (away > HOUR) toast('Raya freut sich, dass du wieder da bist!', 2800);
 flushNotes();
-Promise.all([loadDog(), loadAtlas()]).then(() => { if (S.sleeping) placePerch('couch'); requestAnimationFrame(loop); }).catch(() => toast('Raya-Bilder konnten nicht geladen werden.'));
+Promise.all([loadDog(), loadAtlas()]).then(() => { if (S.sleeping) placeSleep(); requestAnimationFrame(loop); }).catch(() => toast('Raya-Bilder konnten nicht geladen werden.'));
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
