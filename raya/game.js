@@ -130,9 +130,10 @@ function overlay(title, text, btn, cb) {
 
 /* ================= Raya-Sprites ================= */
 const DOG = {};
+const ROOM = {};
 const EYES = {
-  sit: [[15, 14, 4, 3], [26, 14, 4, 3]],
-  stand: [[16, 15, 4, 3], [26, 15, 4, 3]],
+  sit: [[6, 7, 3, 1], [12, 7, 3, 1]],
+  stand: [[5, 7, 3, 2], [11, 7, 3, 2]],
 };
 function loadImg(src) {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
@@ -146,15 +147,18 @@ function closedEyes(img, eyes) {
   for (const [ex, ey, ew, eh] of eyes) {
     const p = x.getImageData(ex + 1, ey - 2, 1, 1).data;
     x.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`; x.fillRect(ex, ey, ew, eh);
-    x.fillStyle = '#2a1206'; x.fillRect(ex, ey + 1, ew, 1);
-    x.fillRect(ex - 1, ey, 1, 1); x.fillRect(ex + ew, ey, 1, 1);
+    x.fillStyle = '#2a1206'; x.fillRect(ex, ey + eh - 1, ew, 1);
   }
   return c;
 }
 async function loadDog() {
-  const names = ['sit', 'sit34', 'stand', 'side', 'side-small', 'side-w1', 'side-w2', 'side-small-w1', 'side-small-w2', 'lie'];
+  // Zimmer-Raya (klein) + Gassi-Raya
+  const names = ['sit', 'sit34', 'stand', 'room-side', 'room-side-w1', 'room-side-w2', 'room-lie', 'side-small', 'side-small-w1', 'side-small-w2'];
   const imgs = await Promise.all(names.map((n) => loadImg('raya-' + n + '.png')));
-  names.forEach((n, i) => { DOG[n] = toCanvas(imgs[i]); });
+  names.forEach((n, i) => { DOG[n.replace('room-', '')] = toCanvas(imgs[i]); });
+  const rooms = ['day', 'dusk', 'night'];
+  const bgs = await Promise.all(rooms.map((p) => loadImg('room-' + p + '.png')));
+  rooms.forEach((p, i) => { ROOM[p] = bgs[i]; });
   DOG['sit-closed'] = closedEyes(imgs[0], EYES.sit);
   DOG['stand-closed'] = closedEyes(imgs[2], EYES.stand);
 }
@@ -210,7 +214,7 @@ function roomBg(phase) {
   bgCache[phase] = c;
   return c;
 }
-function drawRoomBg() { ctx.drawImage(roomBg(skyPhase()), 0, 0, W, H); }
+function drawRoomBg() { const r = ROOM[skyPhase()]; if (r) ctx.drawImage(r, 0, 0); else ctx.drawImage(roomBg(skyPhase()), 0, 0, W, H); }
 function walkBg(dist) {
   ctx.save(); ctx.scale(U, U);
   const ph = skyPhase();
@@ -251,8 +255,8 @@ function walkBg(dist) {
 /* ================= Requisiten (2×) ================= */
 const sprCache = {};
 function sprite(name) { return sprCache[name] || (sprCache[name] = SPR[name].toCanvas()); }
-function drawSpr(name, x, y, flip) {
-  const c = sprite(name), w = c.width * U, h = c.height * U;
+function drawSpr(name, x, y, flip, u = U) {
+  const c = sprite(name), w = c.width * u, h = c.height * u;
   if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(c, -Math.round(x) - w, Math.round(y), w, h); ctx.restore(); }
   else ctx.drawImage(c, Math.round(x), Math.round(y), w, h);
 }
@@ -307,11 +311,11 @@ function updateIdle(dt) {
   if (anim) { anim.t += dt; if (anim.t >= anim.dur) { const a = anim; anim = null; a.end && a.end(); } }
   if (!anim && m !== 'sleep') {
     if (clock > D.wanderAt && !D.walking && (m === 'happy' || m === 'ok')) {
-      D.tx = Math.round(rnd(64, 128)); D.wanderAt = clock + rnd(7, 15);
+      D.tx = Math.round(rnd(52, 140)); D.wanderAt = clock + rnd(7, 15);
     }
     if (Math.abs(D.tx - D.x) > 1) {
       D.walking = true; D.dir = Math.sign(D.tx - D.x);
-      D.x += D.dir * Math.min(Math.abs(D.tx - D.x), 22 * dt);
+      D.x += D.dir * Math.min(Math.abs(D.tx - D.x), 14 * dt);
     } else {
       if (D.walking) D.standEnd = clock + rnd(1, 2.5);
       D.walking = false; D.x = Math.round(D.x);
@@ -350,7 +354,7 @@ function dogPose() {
   if (clock < D.tiltEnd) { name = 'sit34'; flip = D.tiltDir < 0; }
   else if (clock < D.standEnd || m === 'happy' && Math.sin(clock * 0.21) > 0.6) name = 'stand';
   if (blink && (name === 'sit' || name === 'stand')) name += '-closed';
-  if (clock < D.hopEnd) dy = -Math.round(Math.sin(((D.hopEnd - clock) / 0.35) * Math.PI) * 6);
+  if (clock < D.hopEnd) dy = -Math.round(Math.sin(((D.hopEnd - clock) / 0.35) * Math.PI) * 4);
   if (m === 'sad' || m === 'sick') dy = Math.max(dy, 1);
   return { name, flip, dy, dx };
 }
@@ -358,9 +362,9 @@ function dogPose() {
 function drawRoom() {
   drawRoomBg();
   S.poops.forEach((p, i) => {
-    drawSpr('POOP', p.x - 9, FLOOR - 14);
-    const fx = p.x + Math.sin(clock * 6 + i) * 8, fy = FLOOR - 22 + Math.cos(clock * 5 + i) * 4;
-    px('#24120a', fx, fy);
+    drawSpr('POOP', p.x - 4, FLOOR - 7, false, 1);
+    const fx = p.x + Math.sin(clock * 6 + i) * 5, fy = FLOOR - 12 + Math.cos(clock * 5 + i) * 2;
+    ctx.fillStyle = '#24120a'; ctx.fillRect(Math.round(fx), Math.round(fy), 1, 1);
   });
 
   const pose = (D.walking && !anim) ? null : dogPose();
@@ -369,31 +373,32 @@ function drawRoom() {
     const f = Math.floor(clock * 7) % 4;
     drawDog(['side', 'side-w1', 'side', 'side-w2'][f], D.x, FLOOR, D.dir > 0, f % 2 ? -1 : 0);
   } else {
-    const cx = pose.name === 'lie' ? clamp(D.x, 58, 134) : D.x;
+    const cx = pose.name === 'lie' ? clamp(D.x, 30, 162) : D.x;
     drawDog(pose.name, cx + pose.dx, FLOOR, pose.flip, pose.dy);
     if (S.clean < 35 && !S.sleeping) {
-      [[-10, -30], [8, -16], [-4, -8], [12, -44]].forEach(([a, b]) => px('#5a3418', D.x + a, FLOOR + b));
-      px('#24120a', D.x + Math.sin(clock * 7) * 18, FLOOR - 70 + Math.cos(clock * 9) * 6);
+      ctx.fillStyle = '#5a3418';
+      [[-5, -15], [4, -8], [-2, -4], [6, -22]].forEach(([a, b]) => ctx.fillRect(Math.round(D.x + a), FLOOR + b, 1, 1));
+      px('#24120a', D.x + Math.sin(clock * 7) * 12, FLOOR - 40 + Math.cos(clock * 9) * 4);
     }
   }
   if (anim) {
     const t = anim.t;
-    if (anim.type === 'eat') drawSpr('FOOD', D.x - 11, FLOOR - 12);
-    if (anim.type === 'drink') drawSpr('WBOWL', D.x - 11, FLOOR - 10);
-    if (anim.type === 'treat' && t < 0.55) drawSpr('BONE', D.x - 11, -14 + (FLOOR - 74) * (t / 0.55));
+    if (anim.type === 'eat') drawSpr('FOOD', D.x - 5, FLOOR - 7, false, 1);
+    if (anim.type === 'drink') drawSpr('WBOWL', D.x - 5, FLOOR - 5, false, 1);
+    if (anim.type === 'treat' && t < 0.55) drawSpr('BONE', D.x - 5, -8 + (FLOOR - 36) * (t / 0.55), false, 1);
     if (anim.type === 'brush') {
-      drawSpr('BRUSH', D.x - 10 + Math.sin(t * 9) * 14, FLOOR - 50 + Math.cos(t * 4.5) * 4);
-      if (Math.floor(t * 10) % 3 === 0) spark(D.x + rnd(-20, 20), FLOOR - rnd(20, 70));
+      drawSpr('BRUSH', D.x - 5 + Math.sin(t * 9) * 7, FLOOR - 26 + Math.cos(t * 4.5) * 3, false, 1);
+      if (Math.floor(t * 10) % 3 === 0) spark(D.x + rnd(-12, 12), FLOOR - rnd(10, 40));
     }
     if (anim.type === 'vet') {
-      if (t < 1.4) drawSpr('SYRINGE', D.x + 26 - Math.min(1, t / 0.8) * 8, FLOOR - 50);
-      else if (Math.floor(t * 10) % 2 === 0) spark(D.x + rnd(-24, 24), FLOOR - rnd(20, 80));
+      if (t < 1.4) drawSpr('SYRINGE', D.x + 12 - Math.min(1, t / 0.8) * 5, FLOOR - 28, false, 1);
+      else if (Math.floor(t * 10) % 2 === 0) spark(D.x + rnd(-14, 14), FLOOR - rnd(10, 44));
     }
-    if (anim.type === 'pet' && Math.floor(t * 8) !== Math.floor((t - 0.016) * 8)) heart(D.x + rnd(-14, 14), FLOOR - 84);
+    if (anim.type === 'pet' && Math.floor(t * 8) !== Math.floor((t - 0.016) * 8)) heart(D.x + rnd(-8, 8), FLOOR - 50);
     if (anim.type === 'clean' && t < 0.8 && Math.random() < 0.5) spark(rnd(12, 180), FLOOR - rnd(0, 16));
   }
   if (!anim && clock < D.bubbleEnd && need() && !S.sleeping) {
-    const n = need(), bx = Math.round(Math.min(D.x + 24, W - 36)), by = 6;
+    const n = need(), bx = Math.round(Math.min(D.x + 16, W - 36)), by = 52;
     ctx.fillStyle = '#24120a'; ctx.fillRect(bx - 2, by - 2, 34, 30); ctx.fillRect(bx - 4, by, 38, 26);
     ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, 30, 26); ctx.fillRect(bx - 2, by + 2, 34, 22);
     ctx.fillStyle = '#24120a'; ctx.fillRect(bx - 6, by + 30, 4, 4); ctx.fillRect(bx - 12, by + 36, 2, 2);
@@ -405,13 +410,13 @@ function drawRoom() {
     for (let i = 0; i < 3; i++) {
       const k = (clock * 0.5 + i / 3) % 1;
       ctx.globalAlpha = 1 - k;
-      drawSpr('Z', clamp(D.x, 58, 134) - 30 + k * 16 + i * 4, FLOOR - 70 - k * 30);
+      drawSpr('Z', clamp(D.x, 30, 162) - 16 + k * 12 + i * 3, FLOOR - 40 - k * 24);
       ctx.globalAlpha = 1;
     }
   }
   if (S.sick && !S.sleeping && !anim) {
     const k = (clock * 0.8) % 1;
-    ctx.fillStyle = '#93cdf2'; ctx.fillRect(Math.round(D.x + 22), Math.round(FLOOR - 82 + k * 12), 2, 4);
+    ctx.fillStyle = '#93cdf2'; ctx.fillRect(Math.round(D.x + 11), Math.round(FLOOR - 42 + k * 8), 1, 2);
   }
   drawParticles();
 }
@@ -514,7 +519,7 @@ function hud() {
   const lives = G.mode === 'walk' ? ' ' + '♥'.repeat(G.lives) + '♡'.repeat(3 - G.lives) : '';
   el.innerHTML = '<span>' + Math.ceil(G.t) + 's</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + lives + '</span>';
 }
-const MOUTH_Y = FLOOR - 92 + 26; // Höhe des Mauls im Steh-Sprite
+const MOUTH_Y = FLOOR - 46 + 13; // Höhe des Mauls im Steh-Sprite
 function updateGame(dt) {
   clock += dt;
   tickParticles(dt);
@@ -531,9 +536,9 @@ function updateGame(dt) {
     G.catchT -= dt;
     for (let i = G.balls.length - 1; i >= 0; i--) {
       const b = G.balls[i]; b.y += b.v * dt;
-      if (b.y > MOUTH_Y - 12 && b.y < MOUTH_Y + 8 && Math.abs(b.x - G.x) < 14) {
+      if (b.y > MOUTH_Y - 12 && b.y < MOUTH_Y + 8 && Math.abs(b.x - G.x) < 11) {
         G.score += b.bone ? 3 : 1; G.catchT = 0.3; G.balls.splice(i, 1); sfx.catch(); buzz(8);
-        for (let k = 0; k < 3; k++) spark(G.x + rnd(-12, 12), MOUTH_Y + rnd(-8, 8));
+        for (let k = 0; k < 3; k++) spark(G.x + rnd(-8, 8), MOUTH_Y + rnd(-6, 6));
       } else if (b.y > H + 8) G.balls.splice(i, 1);
     }
   } else {
@@ -569,7 +574,7 @@ function jump() {
 function drawGame() {
   if (G.mode === 'play') {
     drawRoomBg();
-    for (const b of G.balls) drawSpr(b.bone ? 'BONE' : 'BALL', b.x - (b.bone ? 11 : 9), b.y - 8);
+    for (const b of G.balls) drawSpr(b.bone ? 'BONE' : 'BALL', b.x - (b.bone ? 5 : 4), b.y - 4, false, 1);
     const lookUp = G.balls.some((b) => b.y > MOUTH_Y - 40 && Math.abs(b.x - G.x) < 20);
     drawDog(G.catchT > 0 ? 'stand-closed' : 'stand', G.x, FLOOR, false, G.catchT > 0 ? -4 : (lookUp ? -1 : 0));
   } else {
@@ -676,9 +681,9 @@ cv.addEventListener('pointerdown', (e) => {
     return;
   }
   if (anim) return;
-  const pi = S.poops.findIndex((p) => Math.abs(p.x - x) < 14 && y > FLOOR - 24);
+  const pi = S.poops.findIndex((p) => Math.abs(p.x - x) < 9 && y > FLOOR - 16);
   if (pi >= 0) { S.poops.splice(pi, 1); S.clean += 8; spark(x, FLOOR - 8); sfx.good(); toast('Weggeräumt!'); clampAll(); save(); updateUI(); return; }
-  if (Math.abs(x - D.x) < 32 && y > FLOOR - 94) { sfx.tap(); pet(); clampAll(); save(); updateUI(); }
+  if (Math.abs(x - D.x) < 22 && y > FLOOR - 50) { sfx.tap(); pet(); clampAll(); save(); updateUI(); }
 });
 cv.addEventListener('pointermove', (e) => { if (G && G.mode === 'play' && (e.buttons || e.pointerType !== 'mouse')) G.tx = toLogical(e)[0]; });
 window.addEventListener('keydown', (e) => {
