@@ -152,7 +152,7 @@ function closedEyes(img, eyes) {
   return c;
 }
 async function loadDog() {
-  const names = ['sit', 'sit34', 'stand', 'side', 'side-small'];
+  const names = ['sit', 'sit34', 'stand', 'side', 'side-small', 'side-w1', 'side-w2', 'side-small-w1', 'side-small-w2', 'lie'];
   const imgs = await Promise.all(names.map((n) => loadImg('raya-' + n + '.png')));
   names.forEach((n, i) => { DOG[n] = toCanvas(imgs[i]); });
   DOG['sit-closed'] = closedEyes(imgs[0], EYES.sit);
@@ -330,7 +330,7 @@ function dogPose() {
   const blink = clock < D.blinkEnd;
   let name = 'sit', flip = false, dy = 0, dx = 0;
   if (m === 'sleep') {
-    name = 'sit-closed'; dy = Math.sin(clock * 1.6) > 0.5 ? 1 : 0;
+    name = 'lie'; dy = Math.sin(clock * 1.6) > 0.5 ? 1 : 0;
     return { name, flip, dy, dx };
   }
   if (anim) {
@@ -366,9 +366,11 @@ function drawRoom() {
   const pose = (D.walking && !anim) ? null : dogPose();
   if (!pose) {
     // Seitenansicht schaut nach links → beim Laufen nach rechts spiegeln
-    drawDog('side', D.x, FLOOR, D.dir > 0, Math.floor(clock * 8) % 2 ? -1 : 0);
+    const f = Math.floor(clock * 7) % 4;
+    drawDog(['side', 'side-w1', 'side', 'side-w2'][f], D.x, FLOOR, D.dir > 0, f % 2 ? -1 : 0);
   } else {
-    drawDog(pose.name, D.x + pose.dx, FLOOR, pose.flip, pose.dy);
+    const cx = pose.name === 'lie' ? clamp(D.x, 58, 134) : D.x;
+    drawDog(pose.name, cx + pose.dx, FLOOR, pose.flip, pose.dy);
     if (S.clean < 35 && !S.sleeping) {
       [[-10, -30], [8, -16], [-4, -8], [12, -44]].forEach(([a, b]) => px('#5a3418', D.x + a, FLOOR + b));
       px('#24120a', D.x + Math.sin(clock * 7) * 18, FLOOR - 70 + Math.cos(clock * 9) * 6);
@@ -403,7 +405,7 @@ function drawRoom() {
     for (let i = 0; i < 3; i++) {
       const k = (clock * 0.5 + i / 3) % 1;
       ctx.globalAlpha = 1 - k;
-      drawSpr('Z', D.x + 22 + k * 20 + i * 4, FLOOR - 92 - k * 30);
+      drawSpr('Z', clamp(D.x, 58, 134) - 30 + k * 16 + i * 4, FLOOR - 70 - k * 30);
       ctx.globalAlpha = 1;
     }
   }
@@ -592,8 +594,9 @@ function drawGame() {
     }
     if (!(G.hitT > 0 && Math.floor(G.hitT * 10) % 2)) {
       const c = DOG['side-small'];
-      const bob = G.y < 0 ? 0 : (Math.floor(G.dist / 6) % 2 ? -2 : 0);
-      drawDog('side-small', 22 + c.width / 2, FLOOR, true, G.y + bob);
+      const f = G.y < 0 ? 1 : Math.floor(G.dist / 5) % 4;
+      const name = ['side-small', 'side-small-w1', 'side-small', 'side-small-w2'][f];
+      drawDog(name, 22 + c.width / 2, FLOOR, true, G.y + (f % 2 ? -2 : 0));
     }
   }
   drawParticles();
