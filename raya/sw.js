@@ -1,5 +1,5 @@
-// Raya – Offline-Cache (stale-while-revalidate)
-const V = 'raya-v3';
+// Raya – Offline-Cache: erst Netz (immer aktuell), bei fehlender Verbindung aus dem Cache
+const V = 'raya-v4';
 const ASSETS = ['./', 'index.html', 'style.css', 'sprites.js', 'game.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'vt323.woff2', 'press-start-2p.woff2',
   'raya-sit.png', 'raya-sit34.png', 'raya-stand.png', 'raya-side.png', 'raya-side-small.png'];
@@ -12,12 +12,11 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(caches.open(V).then((c) => c.match(e.request).then((hit) => {
-    const net = fetch(e.request).then((res) => {
-      if (res && (res.ok || res.type === 'opaque')) c.put(e.request, res.clone());
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  e.respondWith(
+    fetch(e.request, { cache: 'no-cache' }).then((res) => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(V).then((c) => c.put(e.request, copy)); }
       return res;
-    }).catch(() => hit);
-    return hit || net;
-  })));
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }))
+  );
 });
