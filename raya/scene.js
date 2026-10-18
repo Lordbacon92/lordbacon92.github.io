@@ -14,16 +14,18 @@ const NODES = {
   R: [272, 226],   // rechts neben dem Hocker
   RB: [272, 192],  // zwischen Couchtisch und Sessel
   RF: [292, 276],  // vorne rechts (Napfplatz)
+  FS: [205, 296],  // ganz vorne, vor dem Hocker (nah an der Kamera)
   C: [322, 258],   // vor dem Sessel
 };
-const EDGES = [['F2', 'F'], ['F', 'L'], ['L', 'B'], ['B', 'R'], ['R', 'RB'], ['R', 'RF'], ['RF', 'C'], ['R', 'C']];
+const EDGES = [['F2', 'F'], ['F', 'FS'], ['FS', 'RF'], ['L', 'B'], ['B', 'R'], ['R', 'RB'], ['R', 'RF'], ['RF', 'C'], ['R', 'C']];
 
 const PERCHES = {
   couch: { x: 180, y: 184, depth: 206, sort: 207, from: 'L', name: 'die Couch',
     hit: [[96, 156], [210, 158], [214, 194], [150, 194], [96, 178]] },
   stool: { x: 216, y: 224, depth: 262, sort: 263.5, from: 'R', name: 'den Hocker',
     hit: [[171, 204], [262, 204], [262, 250], [173, 250]] },
-  chair: { x: 330, y: 212, depth: 242, sort: 242.5, from: 'C', name: 'den Sessel',
+  // Der Sessel steht mit der Lehne zum Betrachter: Raya sitzt dahinter, nur der Kopf schaut über die Lehne
+  chair: { x: 320, y: 207, depth: 242, sort: 241, from: 'R', name: 'den Sessel',
     hit: [[281, 186], [316, 158], [370, 154], [370, 212], [361, 240], [306, 243], [281, 200]] },
 };
 const BOWL = 'RF';
@@ -152,7 +154,7 @@ function sceneUpdate(dt) {
     const j = R.jump; j.t += dt; const k = Math.min(1, j.t / j.dur);
     R.x = j.x0 + (j.x1 - j.x0) * k;
     R.y = j.y0 + (j.y1 - j.y0) * k - Math.sin(k * Math.PI) * hSit(Math.max(j.d0, j.d1)) * 0.45;
-    j.depth = j.d0 + (j.d1 - j.d0) * k; j.sort = Math.max(j.s0, j.s1) + 0.1;
+    j.depth = j.d0 + (j.d1 - j.d0) * k; j.sort = k < 0.6 ? Math.max(j.s0, j.s1) + 0.1 : j.s1;
     if (k >= 1) { R.y = j.y1; const e = j.end; R.jump = null; e(); }
     return;
   }
