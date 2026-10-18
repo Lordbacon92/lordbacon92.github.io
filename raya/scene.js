@@ -1,56 +1,37 @@
 'use strict';
 /* Raya – Wohnzimmer-Szene (384×288)
-   Perspektivischer Raum: Raya läuft auf einem Wegnetz über den Boden, springt auf Couch, Hocker
-   und Sessel, wird von Möbeln im Vordergrund verdeckt und wird nach hinten kleiner. */
+   Laufkarte aus Alex' Markierung (room-map.json): Boden frei begehbar, grüne Flächen auf Couch,
+   Chaiselongue/Hocker und Sessel per Sprung erreichbar, Möbel gesperrt. Wegfindung per A* auf
+   einem 3-px-Raster. Verdeckung pixelgenau über eine Tiefenkarte (room-depth.png): jedes
+   Möbelpixel kennt seine Tiefe, Raya wird nur dort verdeckt, wo ein Möbel wirklich vor ihr steht. */
 
 const RW = 384, RH = 288;
+const MAP = { ready: false, cell: 3, cols: 0, rows: 0, cells: null, depth: null, jumps: new Map(), spots: {}, occ: null, occOff: 40 };
+const SURF = { couch: 2, chaise: 3, stool: 3, chair: 4 };
+const BOWL = 'bowl';
+// Couchtische: Antippen gibt einen Hinweis
+const TABLES = [[196, 177], [216, 166], [264, 165], [267, 190], [255, 208], [200, 211], [195, 196]];
 
-/* ---------- Raumgeometrie (in Pixeln des Hintergrundbilds) ---------- */
-const NODES = {
-  F2: [55, 262],   // vor der Couch, links
-  F: [118, 276],   // vor der Couch
-  L: [188, 216],   // zwischen Couch-Armlehne und Hocker
-  B: [232, 222],   // hinter dem Hocker, VOR beiden Couchtischen (zwischen den Tischen ist kein Durchgang)
-  R: [272, 226],   // rechts neben dem Hocker
-  RB: [272, 192],  // zwischen Couchtisch und Sessel
-  RF: [292, 276],  // vorne rechts (Napfplatz)
-  FS: [205, 296],  // ganz vorne, vor dem Hocker (nah an der Kamera)
-  C: [322, 258],   // vor dem Sessel
-};
-const EDGES = [['F2', 'F'], ['F', 'FS'], ['FS', 'RF'], ['L', 'B'], ['B', 'R'], ['R', 'RB'], ['R', 'RF'], ['RF', 'C'], ['R', 'C']];
-
-const PERCHES = {
-  couch: { x: 180, y: 184, depth: 206, sort: 207, from: 'L', name: 'die Couch',
-    hit: [[96, 156], [210, 158], [214, 194], [150, 194], [96, 178]] },
-  stool: { x: 216, y: 224, depth: 262, sort: 263.5, from: 'R', name: 'den Hocker',
-    hit: [[171, 204], [262, 204], [262, 250], [173, 250]] },
-  // Der Sessel steht mit der Lehne zum Betrachter: Raya sitzt dahinter, nur der Kopf schaut über die Lehne
-  chair: { x: 320, y: 207, depth: 242, sort: 241, from: 'R', name: 'den Sessel',
-    hit: [[281, 186], [316, 158], [370, 154], [370, 212], [361, 240], [306, 243], [281, 200]] },
-};
-const BOWL = 'RF';
-
-// Möbel, die Raya verdecken können (Polygon wird aus dem Hintergrund ausgeschnitten), sort = Fußlinie
-const OCCLUDERS = [
-  { sort: 250, poly: [[0, 150], [40, 152], [100, 165], [150, 178], [162, 196], [168, 222], [172, 270], [160, 276], [20, 244], [0, 246]] },
-  { sort: 263, poly: [[171, 212], [200, 202], [232, 200], [256, 206], [263, 222], [261, 262], [254, 270], [238, 262], [237, 288], [176, 288], [171, 248]] },
-  { sort: 200, poly: [[217, 168], [240, 165], [263, 169], [262, 180], [254, 182], [252, 203], [248, 203], [246, 184], [232, 184], [226, 203], [222, 203], [222, 182], [217, 179]] },
-  { sort: 206, poly: [[197, 180], [214, 177], [232, 180], [232, 188], [222, 190], [220, 207], [216, 207], [214, 191], [206, 190], [204, 206], [200, 206], [201, 189], [197, 186]] },
-  { sort: 242, poly: [[281, 186], [292, 186], [316, 160], [317, 153], [369, 154], [370, 212], [361, 240], [306, 243], [287, 226], [281, 200]] },
-  { sort: 286, poly: [[352, 168], [384, 158], [384, 288], [359, 288], [361, 214], [350, 198]] },
-];
-OCCLUDERS.forEach((o) => {
-  const p = new Path2D(); o.poly.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y))); p.closePath(); o.path = p;
-});
-
-/* Sitzhöhe in Pixeln abhängig von der Tiefe (y der Fußlinie) */
+/* Sitzhöhe in Pixeln abhängig von der Tiefe (y der Kontaktlinie am Boden) */
 const hSit = (depth) => clamp(36 + 0.52 * (depth - 178), 30, 96);
 
-/* ---------- Atlas (Raya in 9 Tiefenstufen) ---------- */
+/* ---------- Atlas (Raya in 9 Tiefenstufen) + Karten ---------- */
 const ATLAS = { img: null, levels: [], tiles: {} };
 async function loadAtlas() {
-  const [img, meta] = await Promise.all([loadImg('raya-atlas.png'), fetch('raya-atlas.json').then((r) => r.json())]);
+  const [img, meta, map, dimg] = await Promise.all([
+    loadImg('raya-atlas.png'), fetch('raya-atlas.json').then((r) => r.json()),
+    fetch('room-map.json').then((r) => r.json()), loadImg('room-depth.png'),
+  ]);
   ATLAS.img = img; ATLAS.levels = meta.levels; ATLAS.tiles = meta.tiles;
+  MAP.cell = map.cell; MAP.cols = map.cols; MAP.rows = map.rows; MAP.spots = map.spots; MAP.occOff = map.depthOffset;
+  MAP.cells = Uint8Array.from(map.cells, (c) => +c); MAP.depth = Int16Array.from(map.depth);
+  for (const [a, b] of map.jumps) { (MAP.jumps.get(a) || MAP.jumps.set(a, []).get(a)).push(b); (MAP.jumps.get(b) || MAP.jumps.set(b, []).get(b)).push(a); }
+  const c = document.createElement('canvas'); c.width = RW; c.height = RH;
+  const x = c.getContext('2d'); x.drawImage(dimg, 0, 0);
+  const d = x.getImageData(0, 0, RW, RH).data; MAP.occ = new Int16Array(RW * RH);
+  for (let i = 0; i < RW * RH; i++) MAP.occ[i] = d[i * 4] ? d[i * 4] + MAP.occOff : 0;
+  MAP.ready = true;
+  if (!S.sleeping) placeFloor('start');
 }
 function levelFor(depth) {
   const want = hSit(depth) / 90; let best = 0;
@@ -58,7 +39,10 @@ function levelFor(depth) {
   return best;
 }
 
-/* ---------- Geometrie-Helfer ---------- */
+/* ---------- Raster-Helfer ---------- */
+const cIdx = (x, y) => Math.floor(clamp(y, 0, RH - 1) / MAP.cell) * MAP.cols + Math.floor(clamp(x, 0, RW - 1) / MAP.cell);
+const cPt = (k) => ({ x: (k % MAP.cols) * MAP.cell + 1, y: Math.floor(k / MAP.cols) * MAP.cell + 1 });
+const cType = (k) => MAP.cells[k];
 function inPolyPt(x, y, poly) {
   let c = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -67,65 +51,118 @@ function inPolyPt(x, y, poly) {
   }
   return c;
 }
-function nearestOnGraph(x, y) {
-  let best = null;
-  for (const [a, b] of EDGES) {
-    const [ax, ay] = NODES[a], [bx, by] = NODES[b];
-    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
-    const t = clamp(((x - ax) * dx + (y - ay) * dy) / L, 0, 1);
-    const px = ax + dx * t, py = ay + dy * t, d = Math.hypot(px - x, (py - y) * 1.6);
-    if (!best || d < best.d) best = { x: px, y: py, a, b, d };
+/* nächste begehbare Zelle (optional nur ein bestimmter Flächentyp) */
+function nearestCell(x, y, type = 0, maxR = 40) {
+  const ci = Math.floor(x / MAP.cell), cj = Math.floor(y / MAP.cell);
+  let best = -1, bd = Infinity;
+  for (let r = 0; r <= maxR && best < 0; r++) {
+    for (let j = cj - r; j <= cj + r; j++) for (let i = ci - r; i <= ci + r; i++) {
+      if (i < 0 || j < 0 || i >= MAP.cols || j >= MAP.rows) continue;
+      if (Math.max(Math.abs(i - ci), Math.abs(j - cj)) !== r) continue;
+      const k = j * MAP.cols + i, t = MAP.cells[k];
+      if (!t || (type && t !== type)) continue;
+      const d = Math.hypot(i - ci, j - cj); if (d < bd) { bd = d; best = k; }
+    }
   }
   return best;
 }
-function nodePt(n) { return { x: NODES[n][0], y: NODES[n][1], a: n, b: n }; }
+function nodePt(name) { const [x, y] = MAP.spots[name] || MAP.spots.start; return { x, y }; }
 function randomFloorPoint() {
-  const [a, b] = EDGES[Math.floor(Math.random() * EDGES.length)], t = Math.random();
-  return { x: Math.round(NODES[a][0] + (NODES[b][0] - NODES[a][0]) * t), y: Math.round(NODES[a][1] + (NODES[b][1] - NODES[a][1]) * t), a, b };
+  if (!MAP.ready) return { x: 280, y: 250 };
+  for (let n = 0; n < 200; n++) {
+    const k = Math.floor(Math.random() * MAP.cells.length);
+    if (MAP.cells[k] === 1) { const p = cPt(k); if (p.y > 190) return p; }
+  }
+  return nodePt('start');
 }
-/* kürzester Weg über das Wegnetz (Dijkstra mit Start/Ziel als Zusatzknoten) */
-function route(from, to) {
-  const P = {}; for (const n in NODES) P[n] = NODES[n];
-  P.$s = [from.x, from.y]; P.$t = [to.x, to.y];
-  const adj = {}; const link = (u, v) => { (adj[u] = adj[u] || []).push(v); (adj[v] = adj[v] || []).push(u); };
-  EDGES.forEach(([a, b]) => link(a, b));
-  link('$s', from.a); link('$s', from.b); link('$t', to.a); link('$t', to.b);
-  if ((from.a === to.a && from.b === to.b) || (from.a === to.b && from.b === to.a) || from.a === to.a || from.b === to.b) link('$s', '$t');
-  const dist = { $s: 0 }, prev = {}, open = new Set(Object.keys(P));
-  while (open.size) {
-    let u = null; for (const n of open) if (dist[n] !== undefined && (u === null || dist[n] < dist[u])) u = n;
-    if (u === null || u === '$t') break;
-    open.delete(u);
-    for (const v of adj[u] || []) {
-      const d = dist[u] + Math.hypot(P[u][0] - P[v][0], P[u][1] - P[v][1]);
-      if (dist[v] === undefined || d < dist[v]) { dist[v] = d; prev[v] = u; }
+function randomCellOf(type) {
+  const ks = []; for (let k = 0; k < MAP.cells.length; k++) if (MAP.cells[k] === type) ks.push(k);
+  return ks.length ? ks[Math.floor(Math.random() * ks.length)] : -1;
+}
+
+/* A*: Nachbarn auf derselben Fläche + Sprünge zwischen Flächen */
+function astar(from, to) {
+  if (from < 0 || to < 0) return null;
+  const C = MAP.cols, N = MAP.cells.length, g = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+  const tx = to % C, ty = Math.floor(to / C), h = (k) => Math.hypot(k % C - tx, Math.floor(k / C) - ty);
+  const open = [[h(from), from]]; g[from] = 0;
+  const push = (f, k) => { open.push([f, k]); let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; [open[p], open[i]] = [open[i], open[p]]; i = p; } };
+  const pop = () => { const top = open[0], last = open.pop(); if (open.length) { open[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === i) break; [open[m], open[i]] = [open[i], open[m]]; i = m; } } return top; };
+  open.length = 0; push(h(from), from);
+  while (open.length) {
+    const [, k] = pop(); if (closed[k]) continue; closed[k] = 1;
+    if (k === to) break;
+    const x = k % C, y = Math.floor(k / C), t = MAP.cells[k];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= C || ny >= MAP.rows) continue;
+      const n = ny * C + nx; if (MAP.cells[n] !== t || closed[n]) continue;
+      if (dx && dy && (MAP.cells[y * C + nx] !== t || MAP.cells[ny * C + x] !== t)) continue;
+      const ng = g[k] + (dx && dy ? 1.414 : 1);
+      if (ng < g[n]) { g[n] = ng; prev[n] = k; push(ng + h(n), n); }
+    }
+    for (const n of MAP.jumps.get(k) || []) {
+      const ng = g[k] + 14 + Math.hypot(n % C - x, Math.floor(n / C) - y);
+      if (ng < g[n] && !closed[n]) { g[n] = ng; prev[n] = k; push(ng + h(n), n); }
     }
   }
-  const out = []; let n = '$t';
-  while (n && n !== '$s') {
-    out.unshift(n === '$t' ? { x: to.x, y: to.y, a: to.a, b: to.b } : nodePt(n));
-    n = prev[n];
-  }
+  if (!isFinite(g[to])) return null;
+  const out = []; for (let k = to; k !== -1; k = prev[k]) out.unshift(k);
   return out;
+}
+/* Sichtlinie auf derselben Fläche (für glatte Wege) */
+function lineClear(a, b) {
+  const t = MAP.cells[a], C = MAP.cols; let x0 = a % C, y0 = Math.floor(a / C); const x1 = b % C, y1 = Math.floor(b / C);
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let i = 1; i <= n; i++) {
+    const x = Math.round(x0 + (x1 - x0) * i / n), y = Math.round(y0 + (y1 - y0) * i / n);
+    if (MAP.cells[y * C + x] !== t) return false;
+  }
+  return true;
+}
+function sameSurfNeighbor(a, b) {
+  const C = MAP.cols;
+  return MAP.cells[a] === MAP.cells[b] && Math.abs(a % C - b % C) <= 1 && Math.abs(Math.floor(a / C) - Math.floor(b / C)) <= 1;
+}
+/* Pfad in Lauf-Abschnitte (pro Fläche, geglättet) und Sprünge zerlegen */
+function pathSteps(cells) {
+  const steps = []; let segStart = 0;
+  for (let i = 1; i <= cells.length; i++) {
+    if (i < cells.length && sameSurfNeighbor(cells[i - 1], cells[i])) continue;
+    const seg = cells.slice(segStart, i);
+    let a = 0;
+    while (a < seg.length - 1) {
+      let b = seg.length - 1;
+      while (b > a + 1 && !lineClear(seg[a], seg[b])) b--;
+      steps.push({ cell: seg[b], ...cPt(seg[b]) }); a = b;
+    }
+    if (i < cells.length) steps.push({ cell: cells[i], ...cPt(cells[i]), jump: true });
+    segStart = i;
+  }
+  return steps;
 }
 
 /* ---------- Raya als Figur im Raum ---------- */
 const R = {
-  x: NODES.R[0], y: NODES.R[1], a: 'R', b: 'R', perch: null, path: [], jump: null, dir: -1,
+  x: 271, y: 226, cell: -1, path: [], jump: null, dir: -1,
   task: null, nextDecision: 4, userUntil: 0, blinkAt: 2, blinkEnd: 0, tiltAt: 6, tiltEnd: 0, tiltDir: 1,
   standEnd: 0, hopEnd: 0, bubbleAt: 4, bubbleEnd: 0, box: [0, 0, 0, 0],
 };
-function rDepth() { return R.perch ? PERCHES[R.perch].depth : (R.jump ? R.jump.depth : R.y); }
-function rSort() { return R.perch ? PERCHES[R.perch].sort : (R.jump ? R.jump.sort : R.y); }
-function placeFloor(n = 'R') { Object.assign(R, nodePt(n), { perch: null, path: [], jump: null, task: null }); }
-function placePerch(p) { const P = PERCHES[p]; Object.assign(R, { x: P.x, y: P.y, perch: p, path: [], jump: null }); }
+const rType = () => (R.cell >= 0 ? MAP.cells[R.cell] : 1);
+Object.defineProperty(R, 'perch', { get() { const t = rType(); return t === 2 ? 'couch' : t === 3 ? 'chaise' : t === 4 ? 'chair' : null; } });
+function cellDepth(k) { return k >= 0 ? MAP.depth[k] : R.y + 3; }
+function rDepth() { return R.jump ? R.jump.depth : cellDepth(R.cell); }
+function placeAt(k) { if (k < 0) return; Object.assign(R, cPt(k), { cell: k, path: [], jump: null, task: null }); }
+function placeFloor(n = 'start') { if (!MAP.ready) return; const p = nodePt(n === 'R' ? 'start' : n); placeAt(nearestCell(p.x, p.y, 1)); }
+function placePerch(p) { if (!MAP.ready) return; const s = nodePt(p); placeAt(nearestCell(s.x, s.y, SURF[p] || 0)); }
 /* Schlafplatz: Couch – oder das Hundebett, wenn es aufgestellt ist */
-function sleepSpot() { return EXTRAS.decor.has('hundebett') ? { floor: nodePt('F2') } : { perch: 'couch' }; }
+function sleepSpot() { return EXTRAS.decor.has('hundebett') ? { floor: nodePt('bed') } : { perch: 'couch' }; }
 function atSleepSpot() {
-  if (EXTRAS.decor.has('hundebett')) return !R.perch && !R.jump && Math.hypot(R.x - NODES.F2[0], R.y - NODES.F2[1]) < 1;
-  return R.perch === 'couch';
+  if (R.jump || R.path.length) return false;
+  if (EXTRAS.decor.has('hundebett')) { const b = nodePt('bed'); return rType() === 1 && Math.hypot(R.x - b.x, R.y - b.y) < 8; }
+  return rType() === SURF.couch;
 }
-function placeSleep() { if (EXTRAS.decor.has('hundebett')) placeFloor('F2'); else placePerch('couch'); }
+function placeSleep() { if (EXTRAS.decor.has('hundebett')) placeFloor('bed'); else placePerch('couch'); }
 /* besondere Schlafanimation: Mond und funkelnde Sterne über Raya */
 function drawStarSleep() {
   const [x0, y0, x1] = R.box, cx = (x0 + x1) / 2;
@@ -141,25 +178,24 @@ function drawStarSleep() {
 function sceneBusy() { return R.path.length > 0 || !!R.jump; }
 function stopMoving() { R.path = []; R.task = null; }
 
+/* Ziel: { floor:{x,y} } | { perch:'couch'|'chaise'|'stool'|'chair' } | { cell } */
 function goTo(target, task) {
-  const path = [];
-  let start = { x: R.x, y: R.y, a: R.a, b: R.b };
-  if (R.jump) { R.path = []; return; }
-  if (R.perch) {
-    if (target.perch === R.perch) { R.path = []; R.task = task || null; return; }
-    const f = PERCHES[R.perch].from; path.push({ jumpDown: f }); start = nodePt(f);
-  }
-  if (target.perch) {
-    const f = PERCHES[target.perch].from;
-    path.push(...route(start, nodePt(f)), { jumpTo: target.perch });
-  } else {
-    path.push(...route(start, target.floor));
-  }
-  R.path = path; R.task = task || null;
+  if (!MAP.ready || R.jump) { R.task = task || null; return; }
+  if (R.cell < 0) R.cell = nearestCell(R.x, R.y);
+  let to;
+  if (target.cell !== undefined) to = target.cell;
+  else if (target.perch) {
+    if (rType() === SURF[target.perch] && target.perch !== 'stool') { R.path = []; R.task = task || null; return; }
+    const s = nodePt(target.perch); to = nearestCell(s.x, s.y, SURF[target.perch]);
+  } else to = nearestCell(target.floor.x, target.floor.y, 1);
+  const cells = astar(R.cell, to);
+  if (!cells || cells.length < 2) { R.path = []; R.task = task || null; return; }
+  R.path = pathSteps(cells); R.task = task || null;
 }
-function startJump(toX, toY, fromDepth, toDepth, fromSort, toSort, end) {
-  R.jump = { x0: R.x, y0: R.y, x1: toX, y1: toY, t: 0, dur: 0.5, d0: fromDepth, d1: toDepth, s0: fromSort, s1: toSort, end, depth: fromDepth, sort: fromSort };
-  R.dir = Math.sign(toX - R.x) || R.dir;
+function startJump(step) {
+  const d0 = rDepth(), d1 = cellDepth(step.cell);
+  R.jump = { x0: R.x, y0: R.y, x1: step.x, y1: step.y, t: 0, dur: 0.5, d0, d1, depth: d0, cell: step.cell };
+  R.dir = Math.sign(step.x - R.x) || R.dir;
   sfx.jump();
 }
 
@@ -167,42 +203,34 @@ function sceneUpdate(dt) {
   clock += dt;
   if (anim) { anim.t += dt; if (anim.t >= anim.dur) { const a = anim; anim = null; a.end && a.end(); } }
   tickParticles(dt);
+  if (!MAP.ready) return;
 
   // Sprung
   if (R.jump) {
     const j = R.jump; j.t += dt; const k = Math.min(1, j.t / j.dur);
     R.x = j.x0 + (j.x1 - j.x0) * k;
     R.y = j.y0 + (j.y1 - j.y0) * k - Math.sin(k * Math.PI) * hSit(Math.max(j.d0, j.d1)) * 0.45;
-    j.depth = j.d0 + (j.d1 - j.d0) * k; j.sort = k < 0.6 ? Math.max(j.s0, j.s1) + 0.1 : j.s1;
-    if (k >= 1) { R.y = j.y1; const e = j.end; R.jump = null; e(); }
+    // Tiefe: in der Luft die vordere der beiden, gelandet die des Ziels
+    j.depth = k < 0.6 ? Math.max(j.d0, j.d1) : j.d1;
+    if (k >= 1) { R.y = j.y1; R.cell = j.cell; R.jump = null; }
     return;
   }
   // Laufen
   if (R.path.length && !anim) {
     const step = R.path[0];
-    if (step.jumpTo) {
-      const P = PERCHES[step.jumpTo]; R.path.shift();
-      startJump(P.x, P.y, R.y, P.depth, R.y, P.sort, () => { R.perch = step.jumpTo; });
-      return;
-    }
-    if (step.jumpDown) {
-      const P = PERCHES[R.perch], n = nodePt(step.jumpDown); R.path.shift();
-      R.perch = null;
-      startJump(n.x, n.y, P.depth, n.y, P.sort, n.y, () => { Object.assign(R, { a: n.a, b: n.b }); });
-      return;
-    }
-    const sp = hSit(R.y) * 1.0 * dt;
+    if (step.jump) { R.path.shift(); startJump(step); return; }
+    const sp = hSit(rDepth()) * 1.0 * dt;
     const dx = step.x - R.x, dy = step.y - R.y, d = Math.hypot(dx, dy);
     if (Math.abs(dx) > 0.5) R.dir = Math.sign(dx);
-    if (d <= sp) { R.x = step.x; R.y = step.y; R.a = step.a; R.b = step.b; R.path.shift(); if (!R.path.length) R.standEnd = clock + rnd(1, 2.5); }
-    else { R.x += (dx / d) * sp; R.y += (dy / d) * sp; }
+    if (d <= sp) { R.x = step.x; R.y = step.y; R.cell = step.cell; R.path.shift(); if (!R.path.length) R.standEnd = clock + rnd(1, 2.5); }
+    else { R.x += (dx / d) * sp; R.y += (dy / d) * sp; const k = cIdx(R.x, R.y); if (MAP.cells[k] === MAP.cells[step.cell]) R.cell = k; }
     return;
   }
   // angekommen → Aufgabe ausführen
   if (R.task && !anim) { const t = R.task; R.task = null; t(); return; }
 
   const m = mood();
-  // Schlafenszeit: auf die Couch
+  // Schlafenszeit
   if (S.sleeping) { if (!atSleepSpot() && !R.path.length) goTo(sleepSpot()); return; }
   if (anim) return;
 
@@ -210,12 +238,12 @@ function sceneUpdate(dt) {
   if (clock > R.nextDecision && clock > R.userUntil) {
     R.nextDecision = clock + rnd(7, 15);
     const r = Math.random();
-    if (S.energy < 35 && R.perch !== 'chair' && r < 0.6) goTo({ perch: 'chair' });
-    else if (m === 'sick' || m === 'sad') { if (r < 0.3 && R.perch !== 'couch') goTo({ perch: 'couch' }); }
-    else if (r < 0.42) goTo({ floor: randomFloorPoint() });
-    else if (r < 0.6) goTo({ perch: 'couch' });
-    else if (r < 0.72) goTo({ perch: 'stool' });
-    else if (r < 0.82) goTo({ perch: 'chair' });
+    if (S.energy < 35 && rType() !== SURF.chair && r < 0.6) goTo({ perch: 'chair' });
+    else if (m === 'sick' || m === 'sad') { if (r < 0.3 && rType() !== SURF.couch) goTo({ perch: 'couch' }); }
+    else if (r < 0.45) goTo({ floor: randomFloorPoint() });
+    else if (r < 0.6) goTo({ cell: randomCellOf(SURF.couch) });
+    else if (r < 0.75) goTo({ cell: randomCellOf(SURF.chaise) });
+    else if (r < 0.83) goTo({ perch: 'chair' });
   }
   if (clock > R.tiltAt) { R.tiltEnd = clock + 1.8; R.tiltDir = Math.random() < 0.5 ? -1 : 1; R.tiltAt = clock + rnd(9, 16); }
   if (clock > R.blinkAt) { R.blinkEnd = clock + 0.14; R.blinkAt = clock + rnd(2.5, 5.5); }
@@ -248,7 +276,7 @@ function scenePose() {
     return { name, flip, dy, dx };
   }
   if (clock < R.tiltEnd) { name = 'sit34'; flip = R.tiltDir < 0; }
-  else if (!R.perch && (clock < R.standEnd || (m === 'happy' && Math.sin(clock * 0.21) > 0.6))) name = 'stand';
+  else if (rType() === 1 && (clock < R.standEnd || (m === 'happy' && Math.sin(clock * 0.21) > 0.6))) name = 'stand';
   if (blink && (name === 'sit' || name === 'stand')) name += '-closed';
   if (clock < R.hopEnd) dy = -Math.round(Math.sin(((R.hopEnd - clock) / 0.35) * Math.PI) * 4);
   return { name, flip, dy, dx };
@@ -290,10 +318,32 @@ function drawRaya() {
   }
 }
 
+/* Möbelpixel, die vor Raya stehen, über sie zeichnen (pixelgenau per Tiefenkarte) */
+const occCanvas = document.createElement('canvas'); const occCtx = occCanvas.getContext('2d');
+const bgData = {};
+function bgPixels(ph) {
+  if (!bgData[ph]) { const c = document.createElement('canvas'); c.width = RW; c.height = RH; const x = c.getContext('2d'); x.drawImage(ROOM[ph], 0, 0); bgData[ph] = x.getImageData(0, 0, RW, RH).data; }
+  return bgData[ph];
+}
+function drawOccluders(ph, depth) {
+  if (!MAP.ready) return;
+  const pad = 2, x0 = clamp(Math.floor(R.box[0]) - pad - 10, 0, RW), x1 = clamp(Math.ceil(R.box[2]) + pad + 10, 0, RW);
+  const y0 = clamp(Math.floor(R.box[1]) - 30, 0, RH), y1 = clamp(Math.ceil(R.box[3]) + pad, 0, RH);
+  const w = x1 - x0, h = y1 - y0; if (w <= 0 || h <= 0) return;
+  const src = bgPixels(ph), img = occCtx.createImageData(w, h), out = img.data; let any = false;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = (y0 + y) * RW + x0 + x, od = MAP.occ[p];
+    if (od && od > depth) { const o = (y * w + x) * 4, s4 = p * 4; out[o] = src[s4]; out[o + 1] = src[s4 + 1]; out[o + 2] = src[s4 + 2]; out[o + 3] = 255; any = true; }
+  }
+  if (!any) return;
+  occCanvas.width = w; occCanvas.height = h; occCtx.putImageData(img, 0, 0);
+  ctx.drawImage(occCanvas, x0, y0);
+}
+
 function sceneDraw() {
   const ph = skyPhase(), bg = ROOM[ph];
   ctx.drawImage(bg, 0, 0);
-  // alles nach Tiefe sortiert zeichnen
+  const rd = rDepth() + 3;
   const items = [];
   S.poops.forEach((p, i) => items.push({ sort: p.y, draw: () => {
     const u = hSit(p.y) > 63 ? 2 : 1;
@@ -301,13 +351,10 @@ function sceneDraw() {
     ctx.fillStyle = '#24120a';
     ctx.fillRect(Math.round(p.x + Math.sin(clock * 6 + i) * 5 * u), Math.round(p.y - 11 * u + Math.cos(clock * 5 + i) * 2), 1, 1);
   } }));
-  items.push({ sort: rSort(), raya: true, draw: drawRaya });
+  items.push({ sort: rd, raya: true, draw: () => { drawRaya(); drawOccluders(ph, rd); } });
   EXTRAS.decor.forEach((id) => { const it = ITEM_BY_ID[id]; if (it && it.place) items.push({ sort: it.place.sort, draw: () => drawDecor(it) }); });
-  OCCLUDERS.forEach((o) => items.push({ sort: o.sort, occ: true, draw: () => { ctx.save(); ctx.clip(o.path); ctx.drawImage(bg, 0, 0); ctx.restore(); } }));
   items.sort((a, b) => a.sort - b.sort);
-  // Möbel hinter Raya müssen nicht neu gezeichnet werden
-  let seen = false;
-  for (const it of items) { if (it.raya) seen = true; if (seen || !it.occ) it.draw(); }
+  for (const it of items) it.draw();
 
   // Sprechblase über dem Kopf
   if (!anim && !sceneBusy() && clock < R.bubbleEnd && need() && !S.sleeping) {
@@ -332,18 +379,17 @@ function sceneDraw() {
 
 /* Antippen im Raum */
 function sceneTap(x, y) {
-  if (anim || R.jump) return;
+  if (anim || R.jump || !MAP.ready) return;
   const pi = S.poops.findIndex((p) => Math.abs(p.x - x) < 10 && y > p.y - 18 && y < p.y + 4);
   if (pi >= 0) { S.poops.splice(pi, 1); S.clean += 8; spark(x, y); sfx.good(); toast('Weggeräumt!'); clampAll(); save(); updateUI(); return; }
   const [x0, y0, x1, y1] = R.box;
   if (x > x0 - 4 && x < x1 + 4 && y > y0 - 4 && y < y1 + 4 && !sceneBusy()) { sfx.tap(); pet(); clampAll(); save(); updateUI(); return; }
   if (S.sleeping) { toast('Pssst … Raya schläft.'); return; }
+  if (inPolyPt(x, y, TABLES)) { toast('Auf den Tisch darf Raya nicht!'); return; }
   R.userUntil = clock + 20; R.nextDecision = clock + 20;
-  for (const k in PERCHES) {
-    if (inPolyPt(x, y, PERCHES[k].hit)) { goTo({ perch: k }); sfx.tap(); return; }
-  }
-  if (OCCLUDERS[2].poly && (inPolyPt(x, y, OCCLUDERS[2].poly) || inPolyPt(x, y, OCCLUDERS[3].poly))) { toast('Auf den Tisch darf Raya nicht!'); return; }
-  const p = nearestOnGraph(x, y);
-  if (p.d > 70) return;
-  goTo({ floor: p }); sfx.tap();
+  // getippte Zelle direkt begehbar? sonst nächste begehbare Stelle
+  let k = cIdx(x, y);
+  if (!MAP.cells[k]) k = nearestCell(x, y, 0, 12);
+  if (k < 0) return;
+  goTo({ cell: k }); sfx.tap();
 }

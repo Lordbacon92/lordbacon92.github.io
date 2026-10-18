@@ -497,7 +497,7 @@ function finishGame() {
     msg += '<br>Pfoten sind etwas dreckig.';
   }
   clampAll(); save(); sfx.good();
-  placeFloor('R');
+  placeFloor('start');
   overlay(g.mode === 'play' ? 'Super gespielt!' : 'Zurück vom Gassi!', msg, 'Weiter', () => play('pet', 1.2));
   updateUI();
 }
@@ -578,7 +578,7 @@ $('#infoBtn').addEventListener('click', () => {
 $('#closeInfo').addEventListener('click', () => $('#info').close());
 $('#resetBtn').addEventListener('click', () => {
   if (!confirm('Wirklich neu anfangen? Alle Werte und Rekorde werden zurückgesetzt.')) return;
-  S = freshState(); save(); $('#info').close(); placeFloor('R'); updateUI(); toast('Hallo! Ich bin Raya.');
+  S = freshState(); save(); $('#info').close(); placeFloor('start'); updateUI(); toast('Hallo! Ich bin Raya.');
 });
 
 /* ================= Entwickler-Cheat ================= */
