@@ -1,0 +1,181 @@
+@font-face { font-family: 'VT323'; src: url(vt323.woff2) format('woff2'); font-display: swap; }
+@font-face { font-family: 'Press Start 2P'; src: url(press-start-2p.woff2) format('woff2'); font-display: swap; }
+:root {
+  --bg: #2b1a10;
+  --ink: #24120a;
+  --cream: #f7ead2;
+  --cream2: #e6d2ae;
+  --screen: #3a2416;
+  --good: #5fae4e;
+  --mid: #e3b23c;
+  --bad: #d9533b;
+  --pix: 'Press Start 2P', monospace;
+  --txt: 'VT323', monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow-x: hidden; }
+body {
+  background:
+    radial-gradient(circle at 20% 10%, #4a2c18 0, transparent 45%),
+    radial-gradient(circle at 90% 90%, #3a2213 0, transparent 50%),
+    var(--bg);
+  font-family: var(--txt);
+  color: var(--ink);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100dvh;
+  padding: max(14px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom));
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.shell {
+  width: 100%;
+  max-width: 440px;
+  background:
+    radial-gradient(circle at 15% 8%, rgba(255,255,255,.28) 0, transparent 22%),
+    linear-gradient(165deg, #e8913f, #cf6a28 55%, #a9481b);
+  border: 3px solid var(--ink);
+  border-radius: 30px 30px 46px 46px;
+  padding: 14px 14px 18px;
+  box-shadow:
+    inset 0 3px 0 rgba(255,255,255,.35),
+    inset 0 -6px 0 rgba(0,0,0,.18),
+    0 9px 0 #6e2f10,
+    0 22px 40px rgba(0,0,0,.55);
+}
+.top { display: flex; justify-content: space-between; align-items: center; margin: 2px 4px 12px; }
+h1 {
+  font-family: var(--pix);
+  font-size: 22px;
+  margin: 0;
+  color: var(--cream);
+  letter-spacing: 3px;
+  text-shadow: 3px 3px 0 var(--ink);
+}
+.meta { font-family: var(--pix); font-size: 10px; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); }
+
+.bezel {
+  position: relative;
+  background: var(--screen);
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  padding: 8px;
+  box-shadow: inset 0 0 0 3px #5a3a26, 0 3px 0 rgba(0,0,0,.25);
+  overflow: hidden;
+}
+#screen {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 6px;
+  background: #000;
+  touch-action: none;
+  cursor: pointer;
+}
+#hud {
+  position: absolute; top: 14px; left: 14px; right: 14px;
+  display: flex; justify-content: space-between;
+  font-family: var(--pix); font-size: 10px; color: #fff;
+  text-shadow: 2px 2px 0 var(--ink), -1px -1px 0 var(--ink);
+  pointer-events: none;
+}
+#toast {
+  position: absolute; left: 50%; top: 14px;
+  transform: translate(-50%, -8px);
+  max-width: calc(100% - 32px);
+  background: var(--cream);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  padding: 2px 9px 3px;
+  width: max-content;
+  font-size: 18px; line-height: 1; text-align: center;
+  opacity: 0; transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  box-shadow: 0 3px 0 var(--ink);
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#overlay {
+  position: absolute; inset: 8px;
+  border-radius: 6px;
+  background: rgba(36, 18, 10, .86);
+  color: var(--cream);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 12px 16px; gap: 6px;
+}
+#overlay[hidden], #hud[hidden] { display: none; }
+#overlay h2 { font-family: var(--pix); font-size: 13px; margin: 0; color: #ffd27a; line-height: 1.4; }
+#overlay p { margin: 0; font-size: 20px; line-height: 1.05; }
+
+button {
+  font: inherit; color: var(--ink); cursor: pointer;
+  background: var(--cream);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 0 4px 0 var(--ink);
+  transition: transform .05s, box-shadow .05s;
+}
+button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+#overlay button { font-family: var(--pix); font-size: 11px; padding: 8px 18px; margin-top: 6px; }
+
+#status {
+  font-size: 25px; text-align: center; margin: 12px 0 10px;
+  color: var(--cream); text-shadow: 2px 2px 0 var(--ink); min-height: 1.1em; line-height: 1;
+}
+.stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px;
+  background: var(--cream);
+  border: 3px solid var(--ink); border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: inset 0 -4px 0 var(--cream2);
+}
+.stat { display: flex; align-items: center; gap: 6px; font-size: 19px; line-height: 1; }
+.stat span { width: 58px; flex: none; }
+.bar { flex: 1; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; height: 11px; }
+.bar i { background: #dcc8a4; border-radius: 1px; }
+.bar i.on { background: var(--c); box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); }
+
+.actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 14px; }
+.act {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 5px; padding: 9px 0 5px; min-height: 64px;
+  font-size: 17px; line-height: 1;
+}
+.act canvas { image-rendering: pixelated; height: auto; }
+.act.dim { opacity: .5; }
+.act.alert::after {
+  content: '!';
+  position: absolute; top: -8px; right: -6px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bad); color: #fff; border: 2px solid var(--ink);
+  font-family: var(--pix); font-size: 9px; line-height: 16px; text-align: center;
+  animation: bob 1s steps(2) infinite;
+}
+@keyframes bob { 50% { transform: translateY(-3px); } }
+
+.foot { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
+.small { font-family: var(--pix); font-size: 9px; padding: 7px 12px; box-shadow: 0 3px 0 var(--ink); }
+.danger { background: #f4c4b4; }
+
+dialog {
+  border: 3px solid var(--ink); border-radius: 16px;
+  background: var(--cream); color: var(--ink);
+  font-family: var(--txt); font-size: 20px; line-height: 1.1;
+  max-width: min(400px, 92vw); padding: 16px 18px;
+  box-shadow: 0 6px 0 var(--ink);
+}
+dialog::backdrop { background: rgba(20, 10, 4, .7); }
+dialog h2 { font-family: var(--pix); font-size: 14px; margin: 0 0 10px; }
+dialog ul { padding-left: 18px; margin: 0 0 10px; }
+dialog p { margin: 0 0 10px; }
+dialog .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
+
+@media (max-width: 360px) {
+  .act { font-size: 15px; min-height: 58px; }
+  .stat { font-size: 17px; }
+  .stat span { width: 50px; }
+}

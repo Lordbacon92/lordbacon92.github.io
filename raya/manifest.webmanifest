@@ -1,0 +1,17 @@
+{
+  "name": "Raya – Tamagotchi",
+  "short_name": "Raya",
+  "description": "Kümmere dich um Raya: füttern, Gassi gehen, spielen, kraulen.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2b1a10",
+  "theme_color": "#2b1a10",
+  "lang": "de",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

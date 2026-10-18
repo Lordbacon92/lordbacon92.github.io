@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Raya</title>
+<meta name="description" content="Raya – ein Tamagotchi mit dem besten Hund der Welt.">
+<meta name="theme-color" content="#2b1a10">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preload" href="vt323.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="shell">
+  <header class="top">
+    <h1>RAYA</h1>
+    <div class="meta"><span id="age">Tag 1</span></div>
+  </header>
+  <div class="bezel">
+    <canvas id="screen" width="96" height="72" aria-label="Raya"></canvas>
+    <div id="hud" hidden></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="overlay" hidden></div>
+  </div>
+  <p id="status">Raya ist glücklich</p>
+  <section class="stats" id="stats" aria-label="Werte"></section>
+  <section class="actions" id="actions" aria-label="Aktionen"></section>
+  <footer class="foot">
+    <button id="muteBtn" class="small">Ton an</button>
+    <button id="infoBtn" class="small">Info</button>
+  </footer>
+</main>
+
+<dialog id="info">
+  <h2>Raya</h2>
+  <ul id="infoStats"></ul>
+  <p>Raya lebt in Echtzeit – auch wenn die App zu ist, bekommt sie langsam Hunger, Durst und Langeweile. Keine Sorge: Sie wird höchstens traurig oder krank, nie mehr.</p>
+  <p>Tipp: Tipp Raya direkt an, um sie zu kraulen, und tipp auf Häufchen, um sie wegzuräumen.</p>
+  <div class="row">
+    <button id="resetBtn" class="small danger">Neu anfangen</button>
+    <button id="closeInfo" class="small">Schließen</button>
+  </div>
+</dialog>
+
+<script src="sprites.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
