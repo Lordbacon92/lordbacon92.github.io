@@ -231,3 +231,5 @@ button:disabled { opacity: .5; cursor: default; transform: none; }
 .price { display: inline-flex; align-items: center; gap: 3px; font-family: var(--pix); font-size: 10px; }
 .badge { font-family: var(--pix); font-size: 7px; color: #2f6b33; }
 .lock { font-size: 16px; color: #7a6450; text-align: right; }
+
+#age { cursor: default; user-select: none; -webkit-user-select: none; }

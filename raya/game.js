@@ -581,6 +581,22 @@ $('#resetBtn').addEventListener('click', () => {
   S = freshState(); save(); $('#info').close(); placeFloor('R'); updateUI(); toast('Hallo! Ich bin Raya.');
 });
 
+/* ================= Entwickler-Cheat ================= */
+// 5× schnell auf „Tag X“ tippen → Energie 100 %. Am PC auch per Konsole: rayaCheat.energy()
+function cheatEnergy() {
+  S.energy = 100; clampAll(); save(); updateUI();
+  toast('Dev-Cheat: Energie 100 %'); sfx.good();
+}
+window.rayaCheat = { energy: cheatEnergy };
+(() => {
+  let taps = [];
+  $('#age').addEventListener('click', () => {
+    const t = performance.now();
+    taps = taps.filter((x) => t - x < 1500).concat(t);
+    if (taps.length >= 5) { taps = []; cheatEnergy(); }
+  });
+})();
+
 /* ================= Hauptschleife ================= */
 let lastT = performance.now(), simT = 0, uiT = 0;
 function loop(ts) {
