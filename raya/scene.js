@@ -152,6 +152,15 @@ const rType = () => (R.cell >= 0 ? MAP.cells[R.cell] : 1);
 Object.defineProperty(R, 'perch', { get() { const t = rType(); return t === 2 ? 'couch' : t === 3 ? 'chaise' : t === 4 ? 'chair' : null; } });
 function cellDepth(k) { return k >= 0 ? MAP.depth[k] : R.y + 3; }
 function rDepth() { return R.jump ? R.jump.depth : cellDepth(R.cell); }
+/* Größe: nach dem Bodenpunkt unter Raya. Auf dem Boden ihre Fußhöhe; auf Sitzflächen
+   (gleiche Höhe über dem Boden) wird die Bildhöhe perspektivisch auf den Boden umgerechnet –
+   so wächst sie stetig, ohne Sprünge zwischen Polsterteilen. */
+const HORIZON = 109, RAISE = 1.5;
+function sizeDepth(y, t) { return t === 1 ? y + 3 : HORIZON + (y - HORIZON) * RAISE; }
+function rSize() {
+  if (R.jump) { const j = R.jump, k = Math.min(1, j.t / j.dur); return j.s0 + (j.s1 - j.s0) * k; }
+  return sizeDepth(R.y, rType());
+}
 function placeAt(k) { if (k < 0) return; Object.assign(R, cPt(k), { cell: k, path: [], jump: null, task: null }); }
 function placeFloor(n = 'start') { if (!MAP.ready) return; const p = nodePt(n === 'R' ? 'start' : n); placeAt(nearestCell(p.x, p.y, 1)); }
 function placePerch(p) { if (!MAP.ready) return; const s = nodePt(p); placeAt(nearestCell(s.x, s.y, SURF[p] || 0)); }
@@ -194,7 +203,8 @@ function goTo(target, task) {
 }
 function startJump(step) {
   const d0 = rDepth(), d1 = cellDepth(step.cell);
-  R.jump = { x0: R.x, y0: R.y, x1: step.x, y1: step.y, t: 0, dur: 0.5, d0, d1, depth: d0, cell: step.cell };
+  const s0 = rSize(), s1 = sizeDepth(step.y, MAP.cells[step.cell]);
+  R.jump = { x0: R.x, y0: R.y, x1: step.x, y1: step.y, t: 0, dur: 0.5, d0, d1, s0, s1, depth: d0, cell: step.cell };
   R.dir = Math.sign(step.x - R.x) || R.dir;
   sfx.jump();
 }
@@ -209,7 +219,7 @@ function sceneUpdate(dt) {
   if (R.jump) {
     const j = R.jump; j.t += dt; const k = Math.min(1, j.t / j.dur);
     R.x = j.x0 + (j.x1 - j.x0) * k;
-    R.y = j.y0 + (j.y1 - j.y0) * k - Math.sin(k * Math.PI) * hSit(Math.max(j.d0, j.d1)) * 0.45;
+    R.y = j.y0 + (j.y1 - j.y0) * k - Math.sin(k * Math.PI) * hSit(Math.max(j.s0, j.s1)) * 0.45;
     // Tiefe: in der Luft die vordere der beiden, gelandet die des Ziels
     j.depth = k < 0.6 ? Math.max(j.d0, j.d1) : j.d1;
     if (k >= 1) { R.y = j.y1; R.cell = j.cell; R.jump = null; }
@@ -219,7 +229,7 @@ function sceneUpdate(dt) {
   if (R.path.length && !anim) {
     const step = R.path[0];
     if (step.jump) { R.path.shift(); startJump(step); return; }
-    const sp = hSit(rDepth()) * 1.0 * dt;
+    const sp = hSit(rSize()) * 1.0 * dt;
     const dx = step.x - R.x, dy = step.y - R.y, d = Math.hypot(dx, dy);
     if (Math.abs(dx) > 0.5) R.dir = Math.sign(dx);
     if (d <= sp) { R.x = step.x; R.y = step.y; R.cell = step.cell; R.path.shift(); if (!R.path.length) R.standEnd = clock + rnd(1, 2.5); }
@@ -283,14 +293,14 @@ function scenePose() {
 }
 
 function drawRaya() {
-  const pose = scenePose(), li = levelFor(rDepth());
+  const pose = scenePose(), li = levelFor(rSize());
   const t = ATLAS.tiles[pose.name][li], [sx, sy, w, h] = t;
   const x = Math.round(R.x - w / 2 + pose.dx), y = Math.round(R.y - h + pose.dy);
   if (pose.flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(ATLAS.img, sx, sy, w, h, -x - w, y, w, h); ctx.restore(); }
   else ctx.drawImage(ATLAS.img, sx, sy, w, h, x, y, w, h);
   if (EXTRAS.outfit) drawWear(EXTRAS.outfit, pose.name, x, y, w, pose.flip);
   R.box = [x, y, x + w, y + h];
-  const sc = hSit(rDepth()) / 90, u = sc > 0.7 ? 2 : 1;
+  const sc = hSit(rSize()) / 90, u = sc > 0.7 ? 2 : 1;
   // Requisiten bei Raya
   if (anim) {
     const at = anim.t;
