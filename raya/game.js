@@ -1,8 +1,9 @@
 'use strict';
 /* Raya – Tamagotchi
-   Echtzeit, gemütlicher Modus: Werte sinken langsam (auch offline), Raya stirbt nie. */
+   Echtzeit, gemütlicher Modus: Werte sinken langsam (auch offline), Raya stirbt nie.
+   Bildschirm 192×144; Umgebung & Requisiten sind 2× skalierte Pixel, Raya kommt aus Pixel-Art-Sprites. */
 
-const W = 96, H = 72, FLOOR = 66;
+const W = 192, H = 144, FLOOR = 132, U = 2;
 const cv = document.getElementById('screen');
 const ctx = cv.getContext('2d');
 ctx.imageSmoothingEnabled = false;
@@ -16,7 +17,7 @@ const HOUR = 3600000;
 function freshState() {
   const t = Date.now();
   return {
-    v: 1, born: t, last: t,
+    v: 2, born: t, last: t,
     hunger: 85, thirst: 85, fun: 80, energy: 90, clean: 90, health: 100,
     sleeping: false, sick: false, poops: [], pending: [],
     treats: { day: '', n: 0 }, best: { walk: 0, play: 0 },
@@ -26,7 +27,8 @@ function freshState() {
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && s.v === 1) return Object.assign(freshState(), s);
+    if (s && s.v === 1) { s.v = 2; (s.poops || []).forEach((p) => { p.x *= 2; }); }
+    if (s && s.v === 2) return Object.assign(freshState(), s);
   } catch (e) { /* kein Speicher */ }
   return null;
 }
@@ -69,10 +71,10 @@ function stepMinute(t) {
 }
 function poopX() {
   for (let k = 0; k < 10; k++) {
-    const x = Math.round(rnd(8, 88));
-    if (Math.abs(x - 48) > 14 && S.poops.every((p) => Math.abs(p.x - x) > 9)) return x;
+    const x = Math.round(rnd(16, 176));
+    if (Math.abs(x - 96) > 36 && S.poops.every((p) => Math.abs(p.x - x) > 18)) return x;
   }
-  return Math.round(rnd(8, 88));
+  return Math.round(rnd(16, 176));
 }
 function simulate() {
   const target = Date.now();
@@ -126,7 +128,45 @@ function overlay(title, text, btn, cb) {
   o.append(h, p, b); o.hidden = false;
 }
 
-/* ================= Hintergrund ================= */
+/* ================= Raya-Sprites ================= */
+const DOG = {};
+const EYES = {
+  sit: [[15, 14, 4, 3], [26, 14, 4, 3]],
+  stand: [[16, 15, 4, 3], [26, 15, 4, 3]],
+};
+function loadImg(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+}
+function toCanvas(img) {
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  c.getContext('2d').drawImage(img, 0, 0); return c;
+}
+function closedEyes(img, eyes) {
+  const c = toCanvas(img), x = c.getContext('2d');
+  for (const [ex, ey, ew, eh] of eyes) {
+    const p = x.getImageData(ex + 1, ey - 2, 1, 1).data;
+    x.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`; x.fillRect(ex, ey, ew, eh);
+    x.fillStyle = '#2a1206'; x.fillRect(ex, ey + 1, ew, 1);
+    x.fillRect(ex - 1, ey, 1, 1); x.fillRect(ex + ew, ey, 1, 1);
+  }
+  return c;
+}
+async function loadDog() {
+  const names = ['sit', 'sit34', 'stand', 'side', 'side-small'];
+  const imgs = await Promise.all(names.map((n) => loadImg('raya-' + n + '.png')));
+  names.forEach((n, i) => { DOG[n] = toCanvas(imgs[i]); });
+  DOG['sit-closed'] = closedEyes(imgs[0], EYES.sit);
+  DOG['stand-closed'] = closedEyes(imgs[2], EYES.stand);
+}
+/* Zeichnet ein Raya-Sprite mit den Füßen auf y und horizontal zentriert auf cx */
+function drawDog(name, cx, y = FLOOR, flip = false, dy = 0) {
+  const c = DOG[name]; if (!c) return;
+  const x = Math.round(cx - c.width / 2), top = Math.round(y - c.height + dy);
+  if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(c, -x - c.width, top); ctx.restore(); }
+  else ctx.drawImage(c, x, top);
+}
+
+/* ================= Hintergrund (96×72, 2× gezeichnet) ================= */
 const bgCache = {};
 function skyPhase() {
   const h = new Date().getHours();
@@ -135,15 +175,14 @@ function skyPhase() {
 function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; }
 function roomBg(phase) {
   if (bgCache[phase]) return bgCache[phase];
-  const [c, x] = makeCanvas(W, H);
+  const [c, x] = makeCanvas(96, 72);
   const R = (col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
-  R('#efe3cc', 0, 0, W, 48);
-  for (let i = 0; i < W; i += 6) R('#e8dac0', i, 0, 1, 48);
-  R('#b07a4a', 0, 45, W, 3); R('#8a5a32', 0, 47, W, 1);
-  R('#d9ccb6', 0, 48, W, 24);
-  for (let y = 48; y < H; y += 6) R('#c6b79d', 0, y, W, 1);
-  for (let y = 48, k = 0; y < H; y += 6, k++) for (let i = (k % 2) * 6; i < W; i += 12) R('#c6b79d', i, y, 1, 6);
-  // Fenster
+  R('#efe3cc', 0, 0, 96, 48);
+  for (let i = 0; i < 96; i += 6) R('#e8dac0', i, 0, 1, 48);
+  R('#b07a4a', 0, 45, 96, 3); R('#8a5a32', 0, 47, 96, 1);
+  R('#d9ccb6', 0, 48, 96, 24);
+  for (let y = 48; y < 72; y += 6) R('#c6b79d', 0, y, 96, 1);
+  for (let y = 48, k = 0; y < 72; y += 6, k++) for (let i = (k % 2) * 6; i < 96; i += 12) R('#c6b79d', i, y, 1, 6);
   const sky = { day: '#8fd0f0', dusk: '#f0a35e', night: '#1c2350' }[phase];
   R('#8a5a32', 61, 7, 26, 22); R(sky, 63, 9, 22, 18);
   if (phase === 'day') { R('#ffffff', 66, 13, 8, 2); R('#ffffff', 68, 12, 4, 1); R('#fff3a6', 80, 10, 3, 3); }
@@ -151,9 +190,7 @@ function roomBg(phase) {
   if (phase === 'night') { R('#f7ead2', 78, 11, 3, 3); R('#1c2350', 79, 11, 2, 2); [[66, 12], [71, 17], [75, 11], [68, 22], [82, 20]].forEach(([a, b]) => R('#ffffff', a, b, 1, 1)); }
   R('#8a5a32', 73, 9, 2, 18); R('#8a5a32', 63, 17, 22, 2);
   R('#6f4527', 60, 29, 28, 2);
-  // Bild an der Wand (wie im Flur)
   R('#24120a', 34, 7, 12, 15); R('#e9a35a', 35, 8, 10, 13); R('#c4552a', 35, 15, 10, 6); R('#24120a', 39, 11, 2, 7);
-  // Monstera im Korb
   const leaf = (lx, ly, rx, ry, col) => {
     for (let yy = -ry; yy <= ry; yy++) for (let xx = -rx; xx <= rx; xx++) {
       if ((xx / rx) ** 2 + (yy / ry) ** 2 > 1) continue;
@@ -166,7 +203,6 @@ function roomBg(phase) {
   leaf(17, 27, 5, 3, '#2f7d3b'); leaf(11, 10, 4, 3, '#2f7d3b');
   R('#24120a', 4, 38, 15, 11); R('#c9a26b', 5, 39, 13, 9); R('#a8814e', 5, 42, 13, 1); R('#a8814e', 5, 45, 13, 1);
   for (let i = 6; i < 18; i += 2) R('#e0bd86', i, 40, 1, 1);
-  // Teppich
   for (let yy = -6; yy <= 6; yy++) for (let xx = -32; xx <= 32; xx++) {
     if ((xx / 32) ** 2 + (yy / 6) ** 2 > 1) continue;
     R(hash(xx + 99, yy + 7) < 0.25 ? '#d8c59e' : '#e6d6b2', 48 + xx, 64 + yy, 1, 1);
@@ -174,11 +210,13 @@ function roomBg(phase) {
   bgCache[phase] = c;
   return c;
 }
+function drawRoomBg() { ctx.drawImage(roomBg(skyPhase()), 0, 0, W, H); }
 function walkBg(dist) {
+  ctx.save(); ctx.scale(U, U);
   const ph = skyPhase();
   const sky = { day: ['#9ad6f2', '#cfeefa'], dusk: ['#f0a35e', '#f7cf8a'], night: ['#1c2350', '#38407a'] }[ph];
-  ctx.fillStyle = sky[0]; ctx.fillRect(0, 0, W, 30);
-  ctx.fillStyle = sky[1]; ctx.fillRect(0, 30, W, 18);
+  ctx.fillStyle = sky[0]; ctx.fillRect(0, 0, 96, 30);
+  ctx.fillStyle = sky[1]; ctx.fillRect(0, 30, 96, 18);
   for (let i = -1; i < 4; i++) {
     const hx = Math.floor(i * 40 - ((dist * 0.15) % 40));
     ctx.fillStyle = ph === 'night' ? '#2b3a4a' : '#8cbf7a';
@@ -195,45 +233,36 @@ function walkBg(dist) {
       if (xx * xx + yy * yy <= 46) ctx.fillRect(tx + 4 + xx, 31 + yy, 1, 1);
     }
   }
-  ctx.fillStyle = ph === 'night' ? '#26502c' : '#5fae4e'; ctx.fillRect(0, 48, W, 12);
-  ctx.fillStyle = '#b89a72'; ctx.fillRect(0, 60, W, 12);
+  ctx.fillStyle = ph === 'night' ? '#26502c' : '#5fae4e'; ctx.fillRect(0, 48, 96, 12);
+  ctx.fillStyle = '#b89a72'; ctx.fillRect(0, 60, 96, 12);
   ctx.fillStyle = '#9c7f5a';
   for (let i = 0; i < 14; i++) {
-    const px = Math.floor((i * 23 - dist) % W + W) % W;
+    const px = Math.floor((i * 23 - dist) % 96 + 96) % 96;
     ctx.fillRect(px, 63 + (i % 4) * 2, 2, 1);
   }
   ctx.fillStyle = ph === 'night' ? '#1d3d22' : '#4a9a3e';
   for (let i = 0; i < 20; i++) {
-    const px = Math.floor((i * 17 - dist) % W + W) % W;
+    const px = Math.floor((i * 17 - dist) % 96 + 96) % 96;
     ctx.fillRect(px, 59, 1, 2);
   }
+  ctx.restore();
 }
 
-/* ================= Sprite-Cache ================= */
-const dogCache = new Map();
-function dogCanvas(o) {
-  const k = JSON.stringify(o);
-  let c = dogCache.get(k);
-  if (!c) {
-    if (dogCache.size > 300) dogCache.clear();
-    c = (o.side ? drawSide(o.frame, o.jump, o.tail) : drawDog(o)).toCanvas();
-    dogCache.set(k, c);
-  }
-  return c;
-}
+/* ================= Requisiten (2×) ================= */
 const sprCache = {};
 function sprite(name) { return sprCache[name] || (sprCache[name] = SPR[name].toCanvas()); }
 function drawSpr(name, x, y, flip) {
-  const c = sprite(name);
-  if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(c, -Math.round(x) - c.width, Math.round(y)); ctx.restore(); }
-  else ctx.drawImage(c, Math.round(x), Math.round(y));
+  const c = sprite(name), w = c.width * U, h = c.height * U;
+  if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(c, -Math.round(x) - w, Math.round(y), w, h); ctx.restore(); }
+  else ctx.drawImage(c, Math.round(x), Math.round(y), w, h);
 }
+function px(col, x, y, w = 1, h = 1) { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), w * U, h * U); }
 
 /* ================= Raya im Zimmer ================= */
 const D = {
-  x: 48, tx: 48, walking: false, dir: 1,
-  blinkAt: 2, blinkEnd: 0, tiltAt: 6, tiltEnd: 0, tiltDir: 1, tilt: 0,
-  wanderAt: 5, twitchEnd: 0, twitchSide: 0, bubbleAt: 4, bubbleEnd: 0,
+  x: 96, tx: 96, walking: false, dir: 1,
+  blinkAt: 2, blinkEnd: 0, tiltAt: 6, tiltEnd: 0, tiltDir: 1,
+  wanderAt: 5, hopEnd: 0, bubbleAt: 4, bubbleEnd: 0, standEnd: 0,
 };
 let anim = null; // {type, t, dur}
 let clock = 0;
@@ -266,147 +295,130 @@ function statusText() {
   return m === 'happy' ? 'Raya ist glücklich' : 'Raya ist zufrieden';
 }
 
+function tickParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.t > p.life) particles.splice(i, 1);
+  }
+}
 function updateIdle(dt) {
   clock += dt;
   const m = mood();
   if (anim) { anim.t += dt; if (anim.t >= anim.dur) { const a = anim; anim = null; a.end && a.end(); } }
   if (!anim && m !== 'sleep') {
     if (clock > D.wanderAt && !D.walking && (m === 'happy' || m === 'ok')) {
-      D.tx = Math.round(rnd(30, 66)); D.wanderAt = clock + rnd(7, 15);
+      D.tx = Math.round(rnd(64, 128)); D.wanderAt = clock + rnd(7, 15);
     }
-    if (Math.abs(D.tx - D.x) > 0.6) {
+    if (Math.abs(D.tx - D.x) > 1) {
       D.walking = true; D.dir = Math.sign(D.tx - D.x);
-      D.x += D.dir * Math.min(Math.abs(D.tx - D.x), 11 * dt);
-    } else { D.walking = false; D.x = Math.round(D.x); }
-    if (clock > D.tiltAt) { D.tiltEnd = clock + 1.6; D.tiltDir = Math.random() < 0.5 ? -1 : 1; D.tiltAt = clock + rnd(8, 16); }
+      D.x += D.dir * Math.min(Math.abs(D.tx - D.x), 22 * dt);
+    } else {
+      if (D.walking) D.standEnd = clock + rnd(1, 2.5);
+      D.walking = false; D.x = Math.round(D.x);
+    }
+    if (!D.walking && clock > D.tiltAt) { D.tiltEnd = clock + 1.8; D.tiltDir = Math.random() < 0.5 ? -1 : 1; D.tiltAt = clock + rnd(9, 16); }
     if (clock > D.blinkAt) { D.blinkEnd = clock + 0.14; D.blinkAt = clock + rnd(2.5, 5.5); }
-    if (Math.random() < dt * 0.25) { D.twitchEnd = clock + 0.25; D.twitchSide = Math.random() < 0.5 ? 0 : 1; }
+    if (m === 'happy' && !D.walking && Math.random() < dt * 0.12) D.hopEnd = clock + 0.35;
     if (clock > D.bubbleAt) { if (need()) D.bubbleEnd = clock + 3; D.bubbleAt = clock + rnd(7, 10); }
   } else { D.walking = false; }
-  const target = clock < D.tiltEnd ? D.tiltDir * 0.26 : 0;
-  D.tilt += (target - D.tilt) * Math.min(1, dt * 8);
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt;
-    if (p.t > p.life) particles.splice(i, 1);
-  }
+  tickParticles(dt);
 }
 
-function dogOpts() {
+/* Welche Pose / Verschiebung gerade gilt */
+function dogPose() {
   const m = mood();
-  const q = (v, s = 0.04) => Math.round(v / s) * s;
-  const wagSpeed = { happy: 12, ok: 6, sad: 1.5, sick: 1, sleep: 0 }[m];
-  const wagAmp = { happy: 1, ok: 0.7, sad: 0.3, sick: 0.2, sleep: 0 }[m];
-  const o = {
-    eyes: 'open', tilt: q(D.tilt), tail: q(Math.sin(clock * wagSpeed) * wagAmp, 0.5),
-    earL: 0.12, earR: 0.12, tongue: false,
-  };
-  if (m === 'happy') { o.tongue = true; o.earL = o.earR = 0.05; }
-  if (m === 'ok') { o.tongue = Math.sin(clock * 0.4) > 0.2; }
-  if (m === 'sad') { o.eyes = 'sad'; o.earL = o.earR = 0.75; }
-  if (m === 'sick') { o.eyes = 'half'; o.earL = o.earR = 0.85; }
-  if (m === 'sleep') { o.pose = 'lie'; o.eyes = 'closed'; o.earL = 0.45; o.earR = 0.5; o.tail = 0; o.tilt = 0; o.bob = Math.sin(clock * 1.5) > 0.6 ? 1 : 0; }
-  if (clock < D.blinkEnd && o.eyes !== 'closed') o.eyes = 'closed';
-  if (clock < D.twitchEnd) { if (D.twitchSide) o.earR = q(Math.min(1, o.earR + 0.35)); else o.earL = q(Math.min(1, o.earL + 0.35)); }
+  const blink = clock < D.blinkEnd;
+  let name = 'sit', flip = false, dy = 0, dx = 0;
+  if (m === 'sleep') {
+    name = 'sit-closed'; dy = Math.sin(clock * 1.6) > 0.5 ? 1 : 0;
+    return { name, flip, dy, dx };
+  }
   if (anim) {
     const t = anim.t;
     switch (anim.type) {
-      case 'eat': case 'drink':
-        o.headDy = 4; o.tilt = 0; o.eyes = 'closed'; o.mouth = Math.floor(t * 5) % 2 === 0; o.tongue = anim.type === 'drink';
-        o.tail = q(Math.sin(clock * 10), 0.5); break;
-      case 'treat':
-        if (t > 0.55) { o.eyes = 'happy'; o.mouth = Math.floor(t * 6) % 2 === 0; o.tongue = false; } else { o.mouth = true; o.tongue = false; }
-        o.tail = q(Math.sin(clock * 14), 0.5); break;
-      case 'pet':
-        o.eyes = 'happy'; o.tilt = -0.24; o.tongue = true; o.earL = o.earR = 0.4; o.tail = q(Math.sin(clock * 14), 0.5); break;
-      case 'brush':
-        o.eyes = 'happy'; o.tilt = q(Math.sin(t * 3) * 0.12); o.tail = q(Math.sin(clock * 8) * 0.8, 0.5); break;
-      case 'vet':
-        o.eyes = t < 1.4 ? 'sad' : 'happy'; o.earL = o.earR = t < 1.4 ? 0.9 : 0.2; o.tail = 0; o.tongue = t >= 1.4; break;
-      case 'nope':
-        o.tilt = q(Math.sin(t * 18) * 0.18); o.eyes = 'open'; o.tongue = false; break;
-      case 'clean':
-        o.eyes = 'happy'; o.tongue = true; break;
-      case 'wake':
-        o.eyes = t < 0.6 ? 'half' : 'open'; break;
+      case 'eat': case 'drink': name = Math.floor(t * 4) % 2 ? 'stand' : 'stand-closed'; dy = Math.floor(t * 4) % 2 ? 0 : 2; break;
+      case 'treat': name = t > 0.55 ? 'stand-closed' : 'stand'; dy = t > 0.55 && Math.floor(t * 6) % 2 ? 1 : 0; break;
+      case 'pet': name = 'sit34'; flip = true; dy = Math.floor(t * 5) % 2; break;
+      case 'brush': name = Math.floor(t * 3) % 2 ? 'sit-closed' : 'sit'; break;
+      case 'vet': name = t < 1.4 ? 'sit' : 'stand'; dx = t < 1.4 ? Math.round(Math.sin(t * 30)) : 0; break;
+      case 'nope': name = 'sit'; dx = Math.round(Math.sin(t * 30) * 2); break;
+      case 'clean': name = 'stand'; dy = Math.floor(t * 6) % 2 ? -2 : 0; break;
+      case 'wake': name = t < 0.6 ? 'sit-closed' : 'sit'; break;
     }
+    return { name, flip, dy, dx };
   }
-  return o;
+  if (clock < D.tiltEnd) { name = 'sit34'; flip = D.tiltDir < 0; }
+  else if (clock < D.standEnd || m === 'happy' && Math.sin(clock * 0.21) > 0.6) name = 'stand';
+  if (blink && (name === 'sit' || name === 'stand')) name += '-closed';
+  if (clock < D.hopEnd) dy = -Math.round(Math.sin(((D.hopEnd - clock) / 0.35) * Math.PI) * 6);
+  if (m === 'sad' || m === 'sick') dy = Math.max(dy, 1);
+  return { name, flip, dy, dx };
 }
 
 function drawRoom() {
-  ctx.drawImage(roomBg(skyPhase()), 0, 0);
-  // Häufchen
+  drawRoomBg();
   S.poops.forEach((p, i) => {
-    drawSpr('POOP', p.x - 4, FLOOR - 6);
-    const fx = p.x + Math.round(Math.sin(clock * 6 + i) * 4), fy = FLOOR - 10 + Math.round(Math.cos(clock * 5 + i) * 2);
-    ctx.fillStyle = '#24120a'; ctx.fillRect(fx, fy, 1, 1);
+    drawSpr('POOP', p.x - 9, FLOOR - 14);
+    const fx = p.x + Math.sin(clock * 6 + i) * 8, fy = FLOOR - 22 + Math.cos(clock * 5 + i) * 4;
+    px('#24120a', fx, fy);
   });
 
-  // Raya
-  if (D.walking && !anim) {
-    const c = dogCanvas({ side: 1, frame: Math.floor(clock * 8) % 4, jump: false, tail: Math.round(Math.sin(clock * 12)) });
-    const x = Math.round(D.x - 17), y = FLOOR - 21;
-    if (D.dir < 0) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(c, -x - c.width, y); ctx.restore(); } else ctx.drawImage(c, x, y);
+  const pose = (D.walking && !anim) ? null : dogPose();
+  if (!pose) {
+    // Seitenansicht schaut nach links → beim Laufen nach rechts spiegeln
+    drawDog('side', D.x, FLOOR, D.dir > 0, Math.floor(clock * 8) % 2 ? -1 : 0);
   } else {
-    const o = dogOpts();
-    ctx.drawImage(dogCanvas(o), Math.round(D.x - 24), FLOOR - 46);
+    drawDog(pose.name, D.x + pose.dx, FLOOR, pose.flip, pose.dy);
     if (S.clean < 35 && !S.sleeping) {
-      ctx.fillStyle = '#5a3418';
-      [[-5, -12], [4, -6], [-2, -3], [7, -14]].forEach(([a, b]) => ctx.fillRect(Math.round(D.x + a), FLOOR + b, 1, 1));
-      ctx.fillStyle = '#24120a';
-      ctx.fillRect(Math.round(D.x + Math.sin(clock * 7) * 8), FLOOR - 30 + Math.round(Math.cos(clock * 9) * 3), 1, 1);
+      [[-10, -30], [8, -16], [-4, -8], [12, -44]].forEach(([a, b]) => px('#5a3418', D.x + a, FLOOR + b));
+      px('#24120a', D.x + Math.sin(clock * 7) * 18, FLOOR - 70 + Math.cos(clock * 9) * 6);
     }
   }
-  // Animations-Requisiten
   if (anim) {
     const t = anim.t;
-    if (anim.type === 'eat') drawSpr('FOOD', D.x - 5, FLOOR - 4);
-    if (anim.type === 'drink') drawSpr('WBOWL', D.x - 5, FLOOR - 2);
-    if (anim.type === 'treat' && t < 0.55) drawSpr('BONE', D.x - 5, -6 + (FLOOR - 40) * (t / 0.55));
+    if (anim.type === 'eat') drawSpr('FOOD', D.x - 11, FLOOR - 12);
+    if (anim.type === 'drink') drawSpr('WBOWL', D.x - 11, FLOOR - 10);
+    if (anim.type === 'treat' && t < 0.55) drawSpr('BONE', D.x - 11, -14 + (FLOOR - 74) * (t / 0.55));
     if (anim.type === 'brush') {
-      drawSpr('BRUSH', D.x - 4 + Math.sin(t * 9) * 7, FLOOR - 22 + Math.cos(t * 4.5) * 2);
-      if (Math.floor(t * 10) % 3 === 0) spark(D.x + rnd(-10, 10), FLOOR - rnd(10, 30));
+      drawSpr('BRUSH', D.x - 10 + Math.sin(t * 9) * 14, FLOOR - 50 + Math.cos(t * 4.5) * 4);
+      if (Math.floor(t * 10) % 3 === 0) spark(D.x + rnd(-20, 20), FLOOR - rnd(20, 70));
     }
     if (anim.type === 'vet') {
-      if (t < 1.4) drawSpr('SYRINGE', D.x + 12 - Math.min(1, t / 0.8) * 4, FLOOR - 22);
-      else if (Math.floor(t * 10) % 2 === 0) spark(D.x + rnd(-12, 12), FLOOR - rnd(10, 40));
+      if (t < 1.4) drawSpr('SYRINGE', D.x + 26 - Math.min(1, t / 0.8) * 8, FLOOR - 50);
+      else if (Math.floor(t * 10) % 2 === 0) spark(D.x + rnd(-24, 24), FLOOR - rnd(20, 80));
     }
-    if (anim.type === 'pet' && Math.floor(t * 8) !== Math.floor((t - 0.016) * 8)) heart(D.x + rnd(-8, 8), FLOOR - 40);
-    if (anim.type === 'clean' && t < 0.8 && Math.random() < 0.5) spark(rnd(6, 90), FLOOR - rnd(0, 8));
+    if (anim.type === 'pet' && Math.floor(t * 8) !== Math.floor((t - 0.016) * 8)) heart(D.x + rnd(-14, 14), FLOOR - 84);
+    if (anim.type === 'clean' && t < 0.8 && Math.random() < 0.5) spark(rnd(12, 180), FLOOR - rnd(0, 16));
   }
-  // Sprechblase
   if (!anim && clock < D.bubbleEnd && need() && !S.sleeping) {
-    const n = need(), bx = Math.round(D.x + 10), by = 4;
-    ctx.fillStyle = '#24120a'; ctx.fillRect(bx - 1, by - 1, 17, 15); ctx.fillRect(bx - 2, by, 19, 13);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, 15, 13); ctx.fillRect(bx - 1, by + 1, 17, 11);
-    ctx.fillStyle = '#24120a'; ctx.fillRect(bx - 3, by + 15, 2, 2); ctx.fillRect(bx - 6, by + 18, 1, 1);
+    const n = need(), bx = Math.round(Math.min(D.x + 24, W - 36)), by = 6;
+    ctx.fillStyle = '#24120a'; ctx.fillRect(bx - 2, by - 2, 34, 30); ctx.fillRect(bx - 4, by, 38, 26);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, 30, 26); ctx.fillRect(bx - 2, by + 2, 34, 22);
+    ctx.fillStyle = '#24120a'; ctx.fillRect(bx - 6, by + 30, 4, 4); ctx.fillRect(bx - 12, by + 36, 2, 2);
     const c = sprite(n);
-    ctx.drawImage(c, bx + Math.floor((15 - c.width) / 2), by + Math.floor((13 - c.height) / 2));
+    drawSpr(n, bx + Math.floor((30 - c.width * U) / 2), by + Math.floor((26 - c.height * U) / 2));
   }
-  // Schlaf: Licht aus + Zzz
   if (S.sleeping) {
     ctx.fillStyle = 'rgba(14,16,44,0.58)'; ctx.fillRect(0, 0, W, H);
     for (let i = 0; i < 3; i++) {
       const k = (clock * 0.5 + i / 3) % 1;
       ctx.globalAlpha = 1 - k;
-      drawSpr('Z', D.x + 10 + k * 10 + i * 2, FLOOR - 24 - k * 18);
+      drawSpr('Z', D.x + 22 + k * 20 + i * 4, FLOOR - 92 - k * 30);
       ctx.globalAlpha = 1;
     }
   }
-  // Krank: Schweißtropfen
   if (S.sick && !S.sleeping && !anim) {
-    ctx.fillStyle = '#93cdf2';
     const k = (clock * 0.8) % 1;
-    ctx.fillRect(Math.round(D.x + 9), Math.round(FLOOR - 40 + k * 6), 1, 2);
+    ctx.fillStyle = '#93cdf2'; ctx.fillRect(Math.round(D.x + 22), Math.round(FLOOR - 82 + k * 12), 2, 4);
   }
   drawParticles();
 }
-function spark(x, y) { particles.push({ kind: 'SPARK', x, y, vx: 0, vy: -6, t: 0, life: 0.5 }); }
-function heart(x, y) { particles.push({ kind: 'MINIHEART', x, y, vx: rnd(-4, 4), vy: -14, t: 0, life: 1.1 }); }
+function spark(x, y) { particles.push({ kind: 'SPARK', x, y, vx: 0, vy: -12, t: 0, life: 0.5 }); }
+function heart(x, y) { particles.push({ kind: 'MINIHEART', x, y, vx: rnd(-8, 8), vy: -28, t: 0, life: 1.1 }); }
 function drawParticles() {
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
-    drawSpr(p.kind, p.x - 2, p.y - 2);
+    drawSpr(p.kind, p.x - 5, p.y - 5);
   }
   ctx.globalAlpha = 1;
 }
@@ -483,11 +495,12 @@ function startGame(mode) {
   if (asleepGuard()) return;
   if (S.energy < 15) { toast('Raya ist zu müde zum Toben.'); play('nope', 0.6); return; }
   if (S.sick) { toast('Raya ist krank – erst zum Tierarzt.'); play('nope', 0.6); return; }
+  toastQ.length = 0; clearTimeout(toastTimer); toastTimer = 0; $('#toast').classList.remove('show');
   if (mode === 'walk') {
-    G = { mode, paused: true, t: 30, score: 0, lives: 3, y: 0, vy: 0, obs: [], spawn: 1.4, speed: 40, dist: 0, hitT: 0 };
+    G = { mode, paused: true, t: 30, score: 0, lives: 3, y: 0, vy: 0, obs: [], spawn: 1.4, speed: 84, dist: 0, hitT: 0 };
     overlay('Gassi gehen', 'Tippen = springen.<br>Sammle Leckerli, spring über Pfützen, Büsche &amp; Hydranten.', 'Los!', () => { G.paused = false; });
   } else {
-    G = { mode, paused: true, t: 20, score: 0, balls: [], spawn: 0.6, x: 48, tx: 48, catchT: 0 };
+    G = { mode, paused: true, t: 20, score: 0, balls: [], spawn: 0.6, x: 96, tx: 96, catchT: 0 };
     overlay('Bälle fangen', 'Zieh Raya nach links und rechts und fang die Bälle.<br>Knochen zählen dreifach!', 'Los!', () => { G.paused = false; });
   }
   updateUI();
@@ -499,50 +512,49 @@ function hud() {
   const lives = G.mode === 'walk' ? ' ' + '♥'.repeat(G.lives) + '♡'.repeat(3 - G.lives) : '';
   el.innerHTML = '<span>' + Math.ceil(G.t) + 's</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + lives + '</span>';
 }
+const MOUTH_Y = FLOOR - 92 + 26; // Höhe des Mauls im Steh-Sprite
 function updateGame(dt) {
   clock += dt;
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt;
-    if (p.t > p.life) particles.splice(i, 1);
-  }
+  tickParticles(dt);
   if (G.paused) return;
   G.t -= dt;
   if (G.mode === 'play') {
     G.spawn -= dt;
     if (G.spawn <= 0) {
       G.spawn = rnd(0.55, 0.95) * (0.55 + 0.45 * (G.t / 20));
-      G.balls.push({ x: rnd(16, 80), y: -8, v: rnd(24, 34) + (20 - G.t) * 1.3, bone: Math.random() < 0.15 });
+      G.balls.push({ x: rnd(30, 162), y: -16, v: rnd(48, 68) + (20 - G.t) * 2.6, bone: Math.random() < 0.15 });
     }
-    G.x += Math.sign(G.tx - G.x) * Math.min(Math.abs(G.tx - G.x), 75 * dt);
-    G.x = clamp(G.x, 20, 76);
+    G.x += Math.sign(G.tx - G.x) * Math.min(Math.abs(G.tx - G.x), 150 * dt);
+    G.x = clamp(G.x, 26, 166);
     G.catchT -= dt;
     for (let i = G.balls.length - 1; i >= 0; i--) {
       const b = G.balls[i]; b.y += b.v * dt;
-      if (b.y > 38 && b.y < 48 && Math.abs(b.x - G.x) < 7) {
+      if (b.y > MOUTH_Y - 12 && b.y < MOUTH_Y + 8 && Math.abs(b.x - G.x) < 14) {
         G.score += b.bone ? 3 : 1; G.catchT = 0.3; G.balls.splice(i, 1); sfx.catch(); buzz(8);
-        for (let k = 0; k < 3; k++) spark(G.x + rnd(-6, 6), 40 + rnd(-4, 4));
-      } else if (b.y > H + 4) G.balls.splice(i, 1);
+        for (let k = 0; k < 3; k++) spark(G.x + rnd(-12, 12), MOUTH_Y + rnd(-8, 8));
+      } else if (b.y > H + 8) G.balls.splice(i, 1);
     }
   } else {
-    G.speed += dt * 0.9; G.dist += G.speed * dt; G.hitT -= dt;
-    G.vy += 330 * dt; G.y = Math.min(0, G.y + G.vy * dt); if (G.y === 0) G.vy = 0;
+    G.speed += dt * 1.8; G.dist += (G.speed / U) * dt; G.hitT -= dt;
+    G.vy += 700 * dt; G.y = Math.min(0, G.y + G.vy * dt); if (G.y === 0) G.vy = 0;
     G.spawn -= dt;
     if (G.spawn <= 0) {
-      G.spawn = rnd(1.0, 1.8) * (42 / G.speed);
+      G.spawn = rnd(1.0, 1.8) * (84 / G.speed);
       const r = Math.random();
-      const o = r < 0.3 ? { k: 'bone', w: 11, h: 7, y: Math.round(rnd(30, 46)) }
-        : r < 0.55 ? { k: 'puddle', w: 13, h: 3, y: 59 }
-        : r < 0.8 ? { k: 'bush', w: 11, h: 8, y: 54 }
-        : { k: 'hydrant', w: 7, h: 11, y: 51 };
-      o.x = W + 4; G.obs.push(o);
+      const o = r < 0.3 ? { k: 'bone', w: 22, h: 14, y: Math.round(rnd(58, 92)) }
+        : r < 0.55 ? { k: 'puddle', w: 26, h: 6, y: FLOOR - 5 }
+        : r < 0.8 ? { k: 'bush', w: 22, h: 16, y: FLOOR - 16 }
+        : { k: 'hydrant', w: 14, h: 22, y: FLOOR - 22 };
+      o.x = W + 8; G.obs.push(o);
     }
-    const dy = FLOOR - 21 + G.y, box = [20, dy + 4, 44, dy + 20];
+    const c = DOG['side-small'], dx = 22, top = FLOOR - c.height + G.y;
+    const box = [dx + 10, top + 8, dx + c.width - 10, top + c.height];
     for (let i = G.obs.length - 1; i >= 0; i--) {
       const o = G.obs[i]; o.x -= G.speed * dt;
-      if (o.x < -16) { G.obs.splice(i, 1); continue; }
-      const hit = o.x + 1 < box[2] && o.x + o.w - 1 > box[0] && o.y + 1 < box[3] && o.y + o.h > box[1];
+      if (o.x < -32) { G.obs.splice(i, 1); continue; }
+      const hit = o.x + 2 < box[2] && o.x + o.w - 2 > box[0] && o.y + 2 < box[3] && o.y + o.h > box[1];
       if (!hit) continue;
-      if (o.k === 'bone') { G.score++; G.obs.splice(i, 1); sfx.catch(); spark(o.x + 5, o.y + 3); }
+      if (o.k === 'bone') { G.score++; G.obs.splice(i, 1); sfx.catch(); spark(o.x + 10, o.y + 6); }
       else if (G.hitT <= 0) { G.lives--; G.hitT = 1.2; sfx.bad(); buzz(60); }
     }
     if (G.lives <= 0) G.t = 0;
@@ -550,37 +562,38 @@ function updateGame(dt) {
   if (G.t <= 0) finishGame();
 }
 function jump() {
-  if (G && G.mode === 'walk' && !G.paused && G.y === 0) { G.vy = -122; G.y = -0.01; sfx.jump(); }
+  if (G && G.mode === 'walk' && !G.paused && G.y === 0) { G.vy = -262; G.y = -0.01; sfx.jump(); }
 }
 function drawGame() {
   if (G.mode === 'play') {
-    ctx.drawImage(roomBg(skyPhase()), 0, 0);
-    for (const b of G.balls) drawSpr(b.bone ? 'BONE' : 'BALL', b.x - (b.bone ? 5 : 4), b.y - 4);
-    const o = { eyes: G.catchT > 0 ? 'happy' : 'open', mouth: G.catchT > 0 || G.balls.some((b) => b.y > 26 && Math.abs(b.x - G.x) < 9), tongue: true, tail: Math.round(Math.sin(clock * 14)) / 1, earL: 0.05, earR: 0.05 };
-    ctx.drawImage(dogCanvas(o), Math.round(G.x - 24), FLOOR - 46);
+    drawRoomBg();
+    for (const b of G.balls) drawSpr(b.bone ? 'BONE' : 'BALL', b.x - (b.bone ? 11 : 9), b.y - 8);
+    const lookUp = G.balls.some((b) => b.y > MOUTH_Y - 40 && Math.abs(b.x - G.x) < 20);
+    drawDog(G.catchT > 0 ? 'stand-closed' : 'stand', G.x, FLOOR, false, G.catchT > 0 ? -4 : (lookUp ? -1 : 0));
   } else {
     walkBg(G.dist);
     for (const o of G.obs) {
-      if (o.k === 'bone') drawSpr('BONE', o.x, o.y + Math.round(Math.sin(clock * 6 + o.x) * 1));
-      if (o.k === 'hydrant') drawSpr('HYDRANT', o.x, o.y);
+      const ox = Math.round(o.x);
+      if (o.k === 'bone') drawSpr('BONE', ox, o.y + Math.round(Math.sin(clock * 6 + o.x) * 2));
+      if (o.k === 'hydrant') drawSpr('HYDRANT', ox, o.y);
       if (o.k === 'puddle') {
-        ctx.fillStyle = '#24120a'; ctx.fillRect(Math.round(o.x) + 1, o.y, o.w - 2, 4);
-        ctx.fillStyle = '#5aa6e0'; ctx.fillRect(Math.round(o.x) + 2, o.y + 1, o.w - 4, 2);
-        ctx.fillStyle = '#b7e1f7'; ctx.fillRect(Math.round(o.x) + 4, o.y + 1, 3, 1);
+        ctx.fillStyle = '#24120a'; ctx.fillRect(ox + 2, o.y, o.w - 4, 8);
+        ctx.fillStyle = '#5aa6e0'; ctx.fillRect(ox + 4, o.y + 2, o.w - 8, 4);
+        ctx.fillStyle = '#b7e1f7'; ctx.fillRect(ox + 8, o.y + 2, 6, 2);
       }
       if (o.k === 'bush') {
-        const bx = Math.round(o.x);
         for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 11; xx++) {
           const e = ((xx - 5) / 5.6) ** 2 + ((yy - 7) / 7.2) ** 2;
           if (e > 1) continue;
           ctx.fillStyle = e > 0.75 ? '#24120a' : hash(xx, yy) < 0.3 ? '#2f6b33' : '#3f9a49';
-          ctx.fillRect(bx + xx, o.y + yy, 1, 1);
+          ctx.fillRect(ox + xx * U, o.y + yy * U, U, U);
         }
       }
     }
     if (!(G.hitT > 0 && Math.floor(G.hitT * 10) % 2)) {
-      const c = dogCanvas({ side: 1, frame: Math.floor(G.dist / 5) % 4, jump: G.y < 0, tail: Math.round(Math.sin(clock * 14)) });
-      ctx.drawImage(c, 14, Math.round(FLOOR - 21 + G.y));
+      const c = DOG['side-small'];
+      const bob = G.y < 0 ? 0 : (Math.floor(G.dist / 6) % 2 ? -2 : 0);
+      drawDog('side-small', 22 + c.width / 2, FLOOR, true, G.y + bob);
     }
   }
   drawParticles();
@@ -591,7 +604,7 @@ function finishGame() {
   if (g.mode === 'play') {
     S.fun += Math.min(38, 10 + g.score * 2); S.energy -= 12; S.hunger -= 4; S.thirst -= 8;
     const rec = g.score > S.best.play; if (rec) S.best.play = g.score;
-    msg = g.score + ' Bälle gefangen!' + (rec ? '<br>Neuer Rekord!' : '<br>Rekord: ' + S.best.play);
+    msg = g.score + (g.score === 1 ? ' Ball' : ' Bälle') + ' gefangen!' + (rec ? '<br>Neuer Rekord!' : '<br>Rekord: ' + S.best.play);
   } else {
     S.fun += Math.min(38, 14 + g.score * 2); S.energy -= 18; S.thirst -= 12; S.clean -= 10; S.counts.walks++;
     const rec = g.score > S.best.walk; if (rec) S.best.walk = g.score;
@@ -603,7 +616,7 @@ function finishGame() {
     msg += '<br>Pfoten sind etwas dreckig.';
   }
   clampAll(); save(); sfx.good();
-  D.x = 48; D.tx = 48;
+  D.x = 96; D.tx = 96;
   overlay(g.mode === 'play' ? 'Super gespielt!' : 'Zurück vom Gassi!', msg, 'Weiter', () => play('pet', 1.2));
   updateUI();
 }
@@ -660,15 +673,15 @@ cv.addEventListener('pointerdown', (e) => {
     return;
   }
   if (anim) return;
-  const pi = S.poops.findIndex((p) => Math.abs(p.x - x) < 6 && y > FLOOR - 10);
-  if (pi >= 0) { S.poops.splice(pi, 1); S.clean += 8; spark(x, FLOOR - 4); sfx.good(); toast('Weggeräumt!'); clampAll(); save(); updateUI(); return; }
-  if (Math.abs(x - D.x) < 16 && y > FLOOR - 46) { sfx.tap(); pet(); clampAll(); save(); updateUI(); }
+  const pi = S.poops.findIndex((p) => Math.abs(p.x - x) < 14 && y > FLOOR - 24);
+  if (pi >= 0) { S.poops.splice(pi, 1); S.clean += 8; spark(x, FLOOR - 8); sfx.good(); toast('Weggeräumt!'); clampAll(); save(); updateUI(); return; }
+  if (Math.abs(x - D.x) < 32 && y > FLOOR - 94) { sfx.tap(); pet(); clampAll(); save(); updateUI(); }
 });
 cv.addEventListener('pointermove', (e) => { if (G && G.mode === 'play' && (e.buttons || e.pointerType !== 'mouse')) G.tx = toLogical(e)[0]; });
 window.addEventListener('keydown', (e) => {
   if (!G || G.paused) return;
   if (G.mode === 'walk' && (e.code === 'Space' || e.code === 'ArrowUp')) { e.preventDefault(); jump(); }
-  if (G.mode === 'play') { if (e.code === 'ArrowLeft') G.tx = G.x - 12; if (e.code === 'ArrowRight') G.tx = G.x + 12; }
+  if (G.mode === 'play') { if (e.code === 'ArrowLeft') G.tx = G.x - 24; if (e.code === 'ArrowRight') G.tx = G.x + 24; }
 });
 $('#muteBtn').addEventListener('click', () => {
   muted = !muted; try { localStorage.setItem('raya-mute', muted ? '1' : '0'); } catch (e) { /* */ }
@@ -686,7 +699,7 @@ $('#infoBtn').addEventListener('click', () => {
 $('#closeInfo').addEventListener('click', () => $('#info').close());
 $('#resetBtn').addEventListener('click', () => {
   if (!confirm('Wirklich neu anfangen? Alle Werte und Rekorde werden zurückgesetzt.')) return;
-  S = freshState(); save(); $('#info').close(); D.x = D.tx = 48; updateUI(); toast('Hallo! Ich bin Raya.');
+  S = freshState(); save(); $('#info').close(); D.x = D.tx = 96; updateUI(); toast('Hallo! Ich bin Raya.');
 });
 
 /* ================= Hauptschleife ================= */
@@ -718,9 +731,7 @@ updateUI();
 if (firstVisit) toast('Hallo! Ich bin Raya. Kümmerst du dich um mich?', 3600);
 else if (away > HOUR) toast('Raya freut sich, dass du wieder da bist!', 2800);
 flushNotes();
-requestAnimationFrame(loop);
-
-window.__renderIcon = (size, maskable) => renderIcon(size, maskable).toDataURL('image/png');
+loadDog().then(() => requestAnimationFrame(loop)).catch(() => toast('Raya-Bilder konnten nicht geladen werden.'));
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

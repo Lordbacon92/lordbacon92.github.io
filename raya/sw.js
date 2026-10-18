@@ -1,7 +1,8 @@
 // Raya – Offline-Cache (stale-while-revalidate)
-const V = 'raya-v2';
+const V = 'raya-v3';
 const ASSETS = ['./', 'index.html', 'style.css', 'sprites.js', 'game.js', 'manifest.webmanifest',
-  'icon-192.png', 'icon-512.png', 'vt323.woff2', 'press-start-2p.woff2'];
+  'icon-192.png', 'icon-512.png', 'vt323.woff2', 'press-start-2p.woff2',
+  'raya-sit.png', 'raya-sit34.png', 'raya-stand.png', 'raya-side.png', 'raya-side-small.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(V).then((c) => c.addAll(ASSETS)));
   self.skipWaiting();
