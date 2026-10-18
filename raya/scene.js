@@ -9,8 +9,8 @@ const RW = 384, RH = 288;
 const NODES = {
   F2: [55, 262],   // vor der Couch, links
   F: [118, 276],   // vor der Couch
-  L: [190, 208],   // zwischen Couch-Armlehne und Hocker
-  B: [232, 205],   // hinter dem Hocker, vor dem Couchtisch
+  L: [188, 216],   // zwischen Couch-Armlehne und Hocker
+  B: [232, 222],   // hinter dem Hocker, VOR beiden Couchtischen (zwischen den Tischen ist kein Durchgang)
   R: [272, 226],   // rechts neben dem Hocker
   RB: [272, 192],  // zwischen Couchtisch und Sessel
   RF: [292, 276],  // vorne rechts (Napfplatz)
