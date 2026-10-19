@@ -1,5 +1,5 @@
 // Raya – Offline-Cache: erst Netz (immer aktuell), bei fehlender Verbindung aus dem Cache
-const V = 'raya-v19';
+const V = 'raya-v20';
 const ASSETS = ['./', 'index.html', 'style.css', 'sprites.js', 'items.js', 'scene.js', 'game.js', 'diary.js', 'cloud.js', 'firebase-config.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'vt323.woff2', 'press-start-2p.woff2',
   'raya-atlas.png', 'raya-atlas.json', 'raya-wear.png', 'raya-decor.png', 'raya-decor.json', 'raya-stand.png', 'raya-side-small.png', 'raya-side-small-w1.png', 'raya-side-small-w2.png',
@@ -12,8 +12,18 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x !== V).map((x) => caches.delete(x)))));
   self.clients.claim();
 });
+const SDK = 'https://www.gstatic.com/firebasejs/';
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  if (e.request.method !== 'GET') return;
+  // Firebase-Bibliothek: feste Version → einmal laden, danach aus dem Cache (Login klappt auch offline)
+  if (e.request.url.startsWith(SDK)) {
+    e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(V).then((c) => c.put(e.request, copy)); }
+      return res;
+    })));
+    return;
+  }
+  if (new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     fetch(e.request, { cache: 'no-cache' }).then((res) => {
       if (res && res.ok) { const copy = res.clone(); caches.open(V).then((c) => c.put(e.request, copy)); }

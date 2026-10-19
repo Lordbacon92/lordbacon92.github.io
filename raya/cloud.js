@@ -200,19 +200,58 @@ async function firebaseBackend(cfg) {
   };
 }
 
+/* ---------- Anmeldung beim Start (Pflicht) ---------- */
+const gate = {
+  el: () => $c('#gate'),
+  show(text, { login = false, retry = false, offline = false } = {}) {
+    const g = gate.el(); if (!g || window.__rayaNoGate) return;
+    g.hidden = false; document.body.classList.add('gated');
+    $c('#gateText').textContent = text;
+    $c('#gateLogin').hidden = !login; $c('#gateRetry').hidden = !retry;
+    $c('#gateOffline').hidden = !(offline && syncState().uid);
+    $c('#gateErr').textContent = C.error && login ? C.error : '';
+  },
+  hide() { const g = gate.el(); if (g) g.hidden = true; document.body.classList.remove('gated'); },
+};
+function drawGateDog() {
+  const c = $c('#gateDog'); if (!c) return;
+  const img = new Image();
+  Promise.all([fetch('raya-atlas.json').then((r) => r.json()), new Promise((res) => { img.onload = res; img.src = 'raya-atlas.png'; })]).then(([m]) => {
+    const t = m.tiles.sit[m.tiles.sit.length - 1]; c.width = t[2]; c.height = t[3];
+    const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, t[0], t[1], t[2], t[3], 0, 0, t[2], t[3]);
+  }).catch(() => {});
+}
+function initGate() {
+  if (window.__rayaNoGate) { gate.hide(); return; }
+  drawGateDog();
+  gate.show('Lädt …');
+  $c('#gateLogin').addEventListener('click', async () => { $c('#gateLogin').disabled = true; await C.signIn(); $c('#gateLogin').disabled = false; if (!C.user) gate.show('Melde dich an, damit Raya auf all deinen Geräten bei dir ist.', { login: true }); });
+  $c('#gateRetry').addEventListener('click', () => location.reload());
+  $c('#gateOffline').addEventListener('click', () => gate.hide());
+}
+
 async function start() {
-  initUI();
+  initUI(); initGate();
   const cfg = window.RAYA_FIREBASE;
   try {
     if (window.__rayaCloudMock) B = window.__rayaCloudMock;
     else if (cfg && cfg.apiKey) B = await firebaseBackend(cfg);
-    else return;
-  } catch (e) { console.warn('Firebase nicht erreichbar', e); return; }
+    else { gate.hide(); return; }   // ohne Firebase-Konfiguration: rein lokal
+  } catch (e) {
+    console.warn('Firebase nicht erreichbar', e);
+    gate.show('Keine Verbindung zum Login. Prüf dein Internet und versuch es nochmal.', { retry: true, offline: true });
+    return;
+  }
   C.enabled = true; C.ready = true; render();
-  B.onAuth((u) => {
+  B.onAuth(async (u) => {
     C.user = u ? { uid: u.uid, displayName: u.displayName, email: u.email } : null;
     render();
-    if (u) { const dlg = $c('#account'); if (dlg.open) dlg.close(); sync(); }
+    if (!u) { gate.show('Melde dich an, damit Raya auf all deinen Geräten bei dir ist.', { login: true }); return; }
+    const dlg = $c('#account'); if (dlg.open) dlg.close();
+    gate.show('Hallo ' + (u.displayName || '').split(' ')[0] + '! Raya wird geholt …');
+    await sync();
+    if (C.error && !syncState().uid) { gate.show(C.error, { retry: true }); return; }
+    gate.hide();
   });
   setInterval(() => { if (C.user && !document.hidden) sync(); }, 60000);
   document.addEventListener('visibilitychange', () => { if (C.user) sync(); });
