@@ -16,13 +16,14 @@ const TABLES = [[196, 177], [216, 166], [264, 165], [267, 190], [255, 208], [200
 const hSit = (depth) => clamp(36 + 0.52 * (depth - 178), 30, 96);
 
 /* ---------- Atlas (Raya in 9 Tiefenstufen) + Karten ---------- */
-const ATLAS = { img: null, levels: [], tiles: {} };
+const ATLAS = { img: null, wimg: null, levels: [], tiles: {}, wear: {} };
 async function loadAtlas() {
   const [img, meta, map, dimg] = await Promise.all([
     loadImg('raya-atlas.png'), fetch('raya-atlas.json').then((r) => r.json()),
     fetch('room-map.json').then((r) => r.json()), loadImg('room-depth.png'),
   ]);
-  ATLAS.img = img; ATLAS.levels = meta.levels; ATLAS.tiles = meta.tiles;
+  ATLAS.img = img; ATLAS.levels = meta.levels; ATLAS.tiles = meta.tiles; ATLAS.wear = meta.wear || {};
+  loadImg('raya-wear.png').then((w) => { ATLAS.wimg = w; }).catch(() => {});
   MAP.cell = map.cell; MAP.cols = map.cols; MAP.rows = map.rows; MAP.spots = map.spots; MAP.occOff = map.depthOffset;
   MAP.cells = Uint8Array.from(map.cells, (c) => +c); MAP.depth = Int16Array.from(map.depth);
   for (const [a, b] of map.jumps) { (MAP.jumps.get(a) || MAP.jumps.set(a, []).get(a)).push(b); (MAP.jumps.get(b) || MAP.jumps.set(b, []).get(b)).push(a); }
@@ -298,8 +299,9 @@ function drawRaya() {
   const x = Math.round(R.x - w / 2 + pose.dx), y = Math.round(R.y - h + pose.dy);
   if (pose.flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(ATLAS.img, sx, sy, w, h, -x - w, y, w, h); ctx.restore(); }
   else ctx.drawImage(ATLAS.img, sx, sy, w, h, x, y, w, h);
-  if (EXTRAS.outfit) drawWear(EXTRAS.outfit, pose.name, x, y, w, pose.flip);
   R.box = [x, y, x + w, y + h];
+  const wb = EXTRAS.outfit && drawWear(EXTRAS.outfit, pose.name, li, x, y, w, pose.flip);
+  if (wb) R.box = [Math.min(x, wb[0]), Math.min(y, wb[1]), Math.max(x + w, wb[2]), Math.max(y + h, wb[3])];
   const sc = hSit(rSize()) / 90, u = sc > 0.7 ? 2 : 1;
   // Requisiten bei Raya
   if (anim) {

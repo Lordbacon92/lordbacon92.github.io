@@ -263,71 +263,16 @@ function drawDecor(it) {
 
 /* ---------- Kleidung auf Raya ----------
    Ankerpunkte in Pixeln des 100-%-Sprites (ungespiegelt): Kopfoberseite, Hals, Mantelbereich */
-const WEAR_ANCHORS = {
-  sit: { W: 56, head: [28, 13], neck: [28, 41], coat: [15, 38, 41, 66] },
-  stand: { W: 45, head: [22, 13], neck: [22, 41], coat: [10, 38, 35, 62] },
-  sit34: { W: 75, head: [52, 11], neck: [50, 33], coat: [33, 36, 64, 64] },
-  side: { W: 112, head: [20, 9], neck: [30, 33], back: [[36, 27], [84, 28], [90, 46], [40, 52]] },
-  lie: { W: 112, head: [20, 16], neck: [30, 40], back: [[36, 34], [84, 35], [90, 52], [40, 58]] },
-};
-WEAR_ANCHORS['side-w1'] = WEAR_ANCHORS['side-w2'] = WEAR_ANCHORS.side;
-
-function drawWear(itemId, poseName, x, y, w, flip) {
-  const it = ITEM_BY_ID[itemId]; if (!it || !it.wear) return;
-  const A = WEAR_ANCHORS[poseName.replace('-closed', '')]; if (!A) return;
-  const k = w / A.W;
-  const X = (px, pw = 0) => Math.round(x + (flip ? A.W - px - pw : px) * k);
-  const Y = (py) => Math.round(y + py * k);
-  const S = (v) => Math.max(1, Math.round(v * k));
-  const rect = (px, py, pw, ph, col) => { ctx.fillStyle = PAL[col] || col; ctx.fillRect(X(px, pw), Y(py), S(pw), S(ph)); };
-  const [hx, hy] = A.head, [nx, ny] = A.neck;
-  switch (it.wear) {
-    case 'xmas': {
-      for (let i = 0; i < 14; i++) {
-        const wdt = 16 * (1 - i / 15), cx = hx + i * 0.45;
-        rect(cx - wdt / 2, hy - 4 - i, wdt, 1, 'X');
-      }
-      rect(hx - 10, hy - 4, 20, 4, 'W'); rect(hx - 10, hy - 1, 20, 1, 'S');
-      rect(hx + 4, hy - 21, 5, 5, 'W');
-      break;
-    }
-    case 'hat':
-      rect(hx - 8, hy - 11, 16, 9, 'h'); rect(hx - 3, hy - 11, 6, 1, 'H');
-      rect(hx - 8, hy - 5, 16, 2, 'K');
-      rect(hx - 14, hy - 3, 28, 3, 'H'); rect(hx - 14, hy - 1, 28, 1, 'K');
-      break;
-    case 'wreath': {
-      const cols = ['A', 'Y', 'a', 'A', 'w', 'Y', 'A'];
-      for (let i = 0; i < 7; i++) {
-        const ox = -12 + i * 4, oy = -Math.abs(ox) * 0.18;
-        if (i < 6) rect(hx + ox + 2, hy - 1 + oy, 2, 1, 't');
-        rect(hx + ox - 1.5, hy - 3 + oy, 3, 3, cols[i]); rect(hx + ox - 0.5, hy - 2 + oy, 1, 1, i % 2 ? 'X' : 'y');
-      }
-      break;
-    }
-    case 'scarf':
-      rect(nx - 11, ny - 2, 22, 3, 'X'); rect(nx - 11, ny + 1, 22, 1, 'x');
-      for (let i = 0; i < 9; i++) rect(nx - 9 + i, ny + 1 + i, 18 - 2 * i, 1, i % 3 === 1 ? 'x' : 'X');
-      rect(nx - 4, ny + 3, 1, 1, 'w'); rect(nx + 3, ny + 2, 1, 1, 'w'); rect(nx, ny + 6, 1, 1, 'w');
-      break;
-    case 'coat':
-      if (A.coat) {
-        const [x0, y0, x1, y1] = A.coat;
-        for (let yy = y0; yy < y1; yy++) {
-          const f = (yy - y0) / (y1 - y0), pad = -1.5 * f;
-          rect(x0 + pad, yy, x1 - x0 - 2 * pad, 1, yy === y1 - 1 ? 'j' : 'B');
-        }
-        rect(x0, y0, x1 - x0, 2, 'j'); rect((x0 + x1) / 2 - 0.5, y0 + 2, 1, y1 - y0 - 3, 'j');
-        for (let b = 0; b < 3; b++) rect((x0 + x1) / 2 + 2, y0 + 6 + b * 7, 2, 2, 'Y');
-      } else if (A.back) {
-        ctx.fillStyle = PAL.B; ctx.beginPath();
-        A.back.forEach(([px, py], i) => (i ? ctx.lineTo(X(px), Y(py)) : ctx.moveTo(X(px), Y(py))));
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = PAL.j;
-        const [p0, p1] = A.back;
-        ctx.fillRect(Math.min(X(p0[0]), X(p1[0])), Y(p0[1]), Math.abs(X(p1[0]) - X(p0[0])), S(2));
-        rect((p0[0] + p1[0]) / 2, p0[1] + 6, 2, 2, 'Y'); rect((p0[0] + p1[0]) / 2 + 10, p0[1] + 7, 2, 2, 'Y');
-      }
-      break;
-  }
+/* Kleidung: pro Pose und Größenstufe passgenau vorgezeichnet (raya-wear.png, Daten in raya-atlas.json).
+   Jede Kachel kennt ihren Versatz zur Raya-Kachel derselben Stufe. */
+const WEAR_KEY = { halstuch: 'scarf', regenmantel: 'coat', weihnachtsmuetze: 'xmas', blumenkranz: 'wreath', abenteuerhut: 'hat' };
+function drawWear(itemId, poseName, li, x, y, w, flip) {
+  const key = WEAR_KEY[itemId]; if (!key || !ATLAS.wimg) return;
+  const set = ATLAS.wear[key]; if (!set) return;
+  const t = (set[poseName.replace('-closed', '')] || [])[li]; if (!t) return;
+  const [sx, sy, tw, th, dx, dy] = t;
+  const ox = flip ? x + w - dx - tw : x + dx;
+  if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(ATLAS.wimg, sx, sy, tw, th, -ox - tw, y + dy, tw, th); ctx.restore(); }
+  else ctx.drawImage(ATLAS.wimg, sx, sy, tw, th, ox, y + dy, tw, th);
+  return [ox, y + dy, ox + tw, y + dy + th];
 }
