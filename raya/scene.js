@@ -17,6 +17,7 @@ const hSit = (depth) => clamp(36 + 0.52 * (depth - 178), 30, 96);
 
 /* ---------- Atlas (Raya in 9 Tiefenstufen) + Karten ---------- */
 const ATLAS = { img: null, wimg: null, levels: [], tiles: {}, wear: {} };
+const DECOR = { img: null, meta: {} };   // Deko in Raumperspektive (raya-decor.png): [sx, sy, w, h, x, y, sort]
 async function loadAtlas() {
   const [img, meta, map, dimg] = await Promise.all([
     loadImg('raya-atlas.png'), fetch('raya-atlas.json').then((r) => r.json()),
@@ -24,6 +25,7 @@ async function loadAtlas() {
   ]);
   ATLAS.img = img; ATLAS.levels = meta.levels; ATLAS.tiles = meta.tiles; ATLAS.wear = meta.wear || {};
   loadImg('raya-wear.png').then((w) => { ATLAS.wimg = w; }).catch(() => {});
+  Promise.all([loadImg('raya-decor.png'), fetch('raya-decor.json').then((r) => r.json())]).then(([i, m]) => { DECOR.img = i; DECOR.meta = m; }).catch(() => {});
   MAP.cell = map.cell; MAP.cols = map.cols; MAP.rows = map.rows; MAP.spots = map.spots; MAP.occOff = map.depthOffset;
   MAP.cells = Uint8Array.from(map.cells, (c) => +c); MAP.depth = Int16Array.from(map.depth);
   for (const [a, b] of map.jumps) { (MAP.jumps.get(a) || MAP.jumps.set(a, []).get(a)).push(b); (MAP.jumps.get(b) || MAP.jumps.set(b, []).get(b)).push(a); }
@@ -364,7 +366,15 @@ function sceneDraw() {
     ctx.fillRect(Math.round(p.x + Math.sin(clock * 6 + i) * 5 * u), Math.round(p.y - 11 * u + Math.cos(clock * 5 + i) * 2), 1, 1);
   } }));
   items.push({ sort: rd, raya: true, draw: () => { drawRaya(); drawOccluders(ph, rd); } });
-  EXTRAS.decor.forEach((id) => { const it = ITEM_BY_ID[id]; if (it && it.place) items.push({ sort: it.place.sort, draw: () => drawDecor(it) }); });
+  EXTRAS.decor.forEach((id) => {
+    const it = ITEM_BY_ID[id]; if (!it || !it.place) return;
+    const key = it.icon === 'seasonal' ? 'saison:' + seasonalSprite() : id;
+    if (!DECOR.img || !DECOR.meta[key]) { items.push({ sort: it.place.sort, draw: () => drawDecor(it) }); return; }
+    for (const k of [key, key + ':front']) {
+      const m = DECOR.meta[k]; if (!m) continue;
+      items.push({ sort: m[6], draw: () => ctx.drawImage(DECOR.img, m[0], m[1], m[2], m[3], m[4], m[5], m[2], m[3]) });
+    }
+  });
   items.sort((a, b) => a.sort - b.sort);
   for (const it of items) it.draw();
 

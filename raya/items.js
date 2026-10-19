@@ -234,9 +234,9 @@ const ITEMS = [
   // Deko
   { id: 'hundebett', name: 'Hundebett', desc: 'Eigenes Bett vor der Couch – Raya schläft dann hier.', category: 'deko', price: 90, icon: 'BED', place: { x: 55, y: 270, sort: 255, u: 3 } },
   { id: 'kuscheldecke', name: 'Kuscheldecke', desc: 'Lila Decke auf der Couch, Rayas Lieblingsplatz.', category: 'deko', price: 40, icon: 'BLANKET', place: { x: 178, y: 186, sort: 206.5, u: 1 } },
-  { id: 'spielzeugkorb', name: 'Spielzeugkorb', desc: 'Bälle und Quietschies neben dem TV-Board.', category: 'deko', price: 50, icon: 'BASKET', place: { x: 306, y: 188, sort: 188, u: 1 } },
+  { id: 'spielzeugkorb', name: 'Spielzeugkorb', desc: 'Bälle und Quietschies vor dem Sessel.', category: 'deko', price: 50, icon: 'BASKET', place: { x: 306, y: 188, sort: 188, u: 1 } },
   { id: 'futternapf2', name: 'Zweiter Futternapf', desc: 'Türkiser Napf am Futterplatz.', category: 'deko', price: 30, icon: 'BOWL2', place: { x: 318, y: 282, sort: 282, u: 2 } },
-  { id: 'pflanzen', name: 'Topfpflanze', desc: 'Ein bisschen Dschungel vor der Couch.', category: 'deko', price: 45, icon: 'PLANT', place: { x: 18, y: 286, sort: 286, u: 2 } },
+  { id: 'pflanzen', name: 'Topfpflanze', desc: 'Ein bisschen Dschungel neben dem TV-Board.', category: 'deko', price: 45, icon: 'PLANT', place: { x: 18, y: 286, sort: 286, u: 2 } },
   { id: 'saison', name: 'Saison-Deko', desc: 'Wechselt mit der Jahreszeit: Tulpen, Kürbis oder Tannenbaum.', category: 'deko', price: 60, icon: 'seasonal', place: { x: 290, y: 150, sort: 150, u: 1 } },
   // Entdeckungen (nicht kaufbar, nur freischaltbar)
   { id: 'wald-ecke', name: 'Wald-Ecke', desc: 'Moos, Fliegenpilz und Tannenzapfen.', category: 'deko', price: null, unlock: 'first-wald', icon: 'FOREST', place: { x: 150, y: 284, sort: 284, u: 2 } },
