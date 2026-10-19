@@ -217,8 +217,15 @@ function drawGateDog() {
   const c = $c('#gateDog'); if (!c) return;
   const img = new Image();
   Promise.all([fetch('raya-atlas.json').then((r) => r.json()), new Promise((res) => { img.onload = res; img.src = 'raya-atlas.png'; })]).then(([m]) => {
-    const t = m.tiles.sit[m.tiles.sit.length - 1]; c.width = t[2]; c.height = t[3];
-    const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, t[0], t[1], t[2], t[3], 0, 0, t[2], t[3]);
+    const t = m.tiles.sit[m.tiles.sit.length - 1], [sx, sy, w, h] = t;
+    // Mitte am Körper ausrichten (Kopf + Brust), nicht an der Schwanzspitze
+    const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+    const tx = tmp.getContext('2d', { willReadFrequently: true }); tx.drawImage(img, sx, sy, w, h, 0, 0, w, h);
+    const d = tx.getImageData(0, 0, w, Math.round(h * 0.6)).data; let x0 = w, x1 = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) { const px = ((i - 3) / 4) % w; if (px < x0) x0 = px; if (px > x1) x1 = px; }
+    const cx = (x0 + x1 + 1) / 2, half = Math.ceil(Math.max(cx, w - cx));
+    c.width = half * 2; c.height = h;
+    const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(tmp, Math.round(half - cx), 0);
   }).catch(() => {});
 }
 function initGate() {

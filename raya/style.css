@@ -309,7 +309,7 @@ button:disabled { opacity: .5; cursor: default; transform: none; }
   width: min(360px, 100%); text-align: center; background: var(--cream); border: 3px solid var(--ink);
   border-radius: 18px; padding: 22px 20px 18px; box-shadow: 0 6px 0 var(--ink);
 }
-.gatebox h1 { color: #e8913f; margin-bottom: 10px; }
+.gatebox h1 { color: #e8913f; margin-bottom: 10px; padding-left: 3px; }
 #gateDog { height: 150px; width: auto; image-rendering: pixelated; display: block; margin: 4px auto 14px; }
 #gateText { font-size: 21px; line-height: 1.1; margin: 0 0 12px; }
 .gatebox button.small { margin: 4px 4px 0; }
