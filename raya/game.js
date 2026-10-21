@@ -389,10 +389,10 @@ function startGame(mode) {
   toastQ.length = 0; clearTimeout(toastTimer); toastTimer = 0; $('#toast').classList.remove('show');
   if (mode === 'walk') {
     G = { mode, paused: true, t: 0, score: 0, lives: 3, y: 0, vy: 0, obs: [], spawn: 1.4, speed: 84, dist: 0, hitT: 0 };
-    overlay('Gassi gehen', 'Tipp auf „Springen“ oder ins Bild.<br>Sammle Leckerli, spring über Pfützen, Büsche &amp; Hydranten.<br>Es wird immer schneller – nach 3 Treffern ist Schluss.', 'Los!', () => { G.paused = false; });
+    overlay('Gassi gehen', 'Tipp auf „Springen“ oder ins Bild.<br>Sammle Leckerli – goldene zählen 5×!<br>Spring über Pfützen, Büsche &amp; Hydranten.<br>Es wird immer schneller – nach 3 Treffern ist Schluss.', 'Los!', () => { G.paused = false; updatePad(); });
   } else {
     G = { mode, paused: true, t: 0, score: 0, lives: 3, balls: [], spawn: 0.6, x: 96, tx: 96, catchT: 0, hurtT: 0 };
-    overlay('Bälle fangen', 'Zieh Raya nach links und rechts und fang die Bälle.<br>Knochen zählen dreifach!<br>Finger weg von Schokolade – 3× erwischt, dann ist Schluss.', 'Los!', () => { G.paused = false; });
+    overlay('Bälle fangen', 'Wisch auf dem großen Feld unten (oder im Bild) nach links und rechts und fang die Bälle.<br>Knochen zählen dreifach!<br>Finger weg von Schokolade – 3× erwischt, dann ist Schluss.', 'Los!', () => { G.paused = false; updatePad(); });
   }
   setGameUI(mode);
   updateUI();
@@ -436,7 +436,7 @@ function updateGame(dt) {
     if (G.spawn <= 0) {
       G.spawn = rnd(1.0, 1.8) * (84 / G.speed);
       const r = Math.random();
-      const o = r < 0.3 ? { k: 'bone', w: 22, h: 14, y: Math.round(rnd(58, 92)) }
+      const o = r < 0.3 ? { k: 'bone', w: 22, h: 14, y: Math.round(rnd(58, 92)), gold: Math.random() < 0.12, ph: rnd(0, 6.28) }
         : r < 0.55 ? { k: 'puddle', w: 26, h: 6, y: FLOOR - 5 }
         : r < 0.8 ? { k: 'bush', w: 19, h: 20, y: FLOOR - 20 }
         : { k: 'hydrant', w: 14, h: 22, y: FLOOR - 22 };
@@ -450,7 +450,7 @@ function updateGame(dt) {
       if (o.x < -32) { G.obs.splice(i, 1); continue; }
       const hit = o.x + 2 < box[2] && o.x + o.w - 2 > box[0] && o.y + 2 < box[3] && o.y + o.h > box[1];
       if (!hit) continue;
-      if (o.k === 'bone') { G.score++; G.obs.splice(i, 1); sfx.catch(); spark(o.x + 10, o.y + 6); }
+      if (o.k === 'bone') { G.score += o.gold ? 5 : 1; G.obs.splice(i, 1); sfx.catch(); spark(o.x + 10, o.y + 6); if (o.gold) { buzz(20); for (let k = 0; k < 4; k++) spark(o.x + rnd(0, 20), o.y + rnd(-6, 12)); } }
       else if (G.hitT <= 0) { G.lives--; G.hitT = 1.2; sfx.bad(); buzz(60); }
     }
     if (G.lives <= 0) finishGame();
@@ -471,7 +471,11 @@ function drawGame() {
     walkBg(G.dist);
     for (const o of G.obs) {
       const ox = Math.round(o.x);
-      if (o.k === 'bone') drawSpr('BONE', ox, o.y + Math.round(Math.sin(clock * 6 + o.x) * 2));
+      if (o.k === 'bone') {   // schwebt ruhig auf und ab (halbe Pixel = echte Bildschirmpixel)
+        const fy = Math.round(Math.sin(clock * 2.4 + o.ph) * 5) / 2;
+        drawSpr(o.gold ? 'GBONE' : 'BONE', ox, o.y + fy);
+        if (o.gold && Math.sin(clock * 7 + o.ph) > 0.85) spark(ox + rnd(2, 20), o.y + fy + rnd(-2, 10));
+      }
       if (o.k === 'hydrant') drawSpr('HYDRANT', ox, o.y);
       if (o.k === 'puddle') {
         ctx.fillStyle = '#24120a'; ctx.fillRect(ox + 2, o.y, o.w - 4, 8);
@@ -624,9 +628,10 @@ function setGameUI(mode) {
   document.body.classList.toggle('ingame', !!mode);
   const pad = $('#gamepad'); if (!pad) return;
   pad.hidden = !mode;
-  $('#jumpBtn').hidden = mode !== 'walk';
-  $('#gameHint').textContent = mode === 'play' ? 'Zieh Raya über das Bild – fang Bälle, keine Schokolade!' : mode === 'bath' ? 'Wisch die Flecken mit dem Finger weg!' : '';
-  $('#gameHint').hidden = mode !== 'play' && mode !== 'bath';
+  $('#jumpBtn').hidden = mode !== 'walk' && mode !== 'play';
+  $('#gameHint').textContent = mode === 'bath' ? 'Wisch die Flecken mit dem Finger weg!' : '';
+  $('#gameHint').hidden = mode !== 'bath';
+  updatePad();
   $('#quitBtn').textContent = mode === 'bath' ? 'Fertig' : 'Spiel beenden';
 }
 
@@ -778,11 +783,24 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-/* Springen-Knopf & Beenden (Minispiele) */
+/* Großes Feld unter dem Bild: startet das Spiel, springt (Gassi) bzw. ist Wischfläche (Bälle) */
+function updatePad() {
+  const jb = $('#jumpBtn'); if (!jb || !G) return;
+  jb.classList.toggle('swipe', G.mode === 'play' && !G.paused);
+  jb.textContent = G.paused ? 'Los!' : G.mode === 'walk' ? 'Springen' : '⟵  Hier wischen  ⟶';
+}
 (() => {
   const jb = document.getElementById('jumpBtn'), qb = document.getElementById('quitBtn');
   if (jb) {
-    jb.addEventListener('pointerdown', (e) => { e.preventDefault(); jb.classList.add('down'); jump(); });
+    const steer = (e) => { const r = jb.getBoundingClientRect(); G.tx = 26 + clamp((e.clientX - r.left) / r.width, 0, 1) * 140; };
+    jb.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); if (!G) return;
+      if (G.paused) { G.paused = false; $('#overlay').hidden = true; sfx.tap(); updatePad(); return; }
+      jb.classList.add('down');
+      if (G.mode === 'walk') jump();
+      else if (G.mode === 'play') { try { jb.setPointerCapture(e.pointerId); } catch (x) { /* */ } steer(e); }
+    });
+    jb.addEventListener('pointermove', (e) => { if (G && G.mode === 'play' && !G.paused && (e.buttons || e.pointerType !== 'mouse')) steer(e); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => jb.addEventListener(t, () => jb.classList.remove('down')));
     jb.addEventListener('contextmenu', (e) => e.preventDefault());
   }

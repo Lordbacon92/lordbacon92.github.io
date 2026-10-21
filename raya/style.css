@@ -322,10 +322,12 @@ body.ingame #status, body.ingame .stats, body.ingame .actions, body.ingame .foot
 #gameHint { font-size: 18px; text-align: center; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); margin: 0; line-height: 1.1; }
 button.jump {
   font-family: var(--pix); font-weight: 700; font-size: 29px; letter-spacing: 2px;
-  min-height: clamp(120px, 26dvh, 260px); border-radius: 22px; border-width: 4px;
+  min-height: clamp(160px, 36dvh, 340px); border-radius: 22px; border-width: 4px;
   background: #f7d58a; box-shadow: 0 7px 0 var(--ink);
   touch-action: manipulation; -webkit-user-select: none; user-select: none;
 }
+button.jump.swipe { touch-action: none; background: #f2e2bd; font-size: 22px; }
+button.jump.swipe:active, button.jump.swipe.down { transform: none; box-shadow: 0 7px 0 var(--ink); }
 button.jump:active, button.jump.down { transform: translateY(5px); box-shadow: 0 2px 0 var(--ink); }
 #quitBtn { align-self: center; }
 .pawline { color: #ffd27a; }

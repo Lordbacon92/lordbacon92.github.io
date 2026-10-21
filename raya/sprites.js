@@ -117,6 +117,15 @@ const SPR = {
     'KLLK...KLLK',
     '.KK.....KK.',
   ]),
+  GBONE: spr([   // goldener Knochen
+    '.KK.....KK.',
+    'KYwK...KYYK',
+    'KYwYKKKYYyK',
+    '.KYYYYYYyK.',
+    'KYYYKKKYyyK',
+    'KYyK...KyyK',
+    '.KK.....KK.',
+  ]),
   DROP: spr([
     '....K....',
     '...KbK...',
