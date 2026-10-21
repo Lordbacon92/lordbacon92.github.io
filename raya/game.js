@@ -438,7 +438,7 @@ function updateGame(dt) {
       const r = Math.random();
       const o = r < 0.3 ? { k: 'bone', w: 22, h: 14, y: Math.round(rnd(58, 92)), gold: Math.random() < 0.12, ph: rnd(0, 6.28) }
         : r < 0.55 ? { k: 'puddle', w: 26, h: 6, y: FLOOR - 5 }
-        : r < 0.8 ? { k: 'bush', w: 19, h: 20, y: FLOOR - 20 }
+        : r < 0.8 ? { k: 'bush', w: 21, h: 22, y: FLOOR - 22 }
         : { k: 'hydrant', w: 14, h: 22, y: FLOOR - 22 };
       o.x = W + 8; G.obs.push(o);
     }
@@ -482,7 +482,10 @@ function drawGame() {
         ctx.fillStyle = '#5aa6e0'; ctx.fillRect(ox + 4, o.y + 2, o.w - 8, 4);
         ctx.fillStyle = '#b7e1f7'; ctx.fillRect(ox + 8, o.y + 2, 6, 2);
       }
-      if (o.k === 'bush' && WALK.bush) ctx.drawImage(WALK.bush, ox, o.y + o.h - WALK.bush.height / 2, WALK.bush.width / 2, WALK.bush.height / 2);
+      if (o.k === 'bush' && WALK.bush) {
+        ctx.fillStyle = 'rgba(20,12,6,0.35)'; ctx.fillRect(ox + 1, FLOOR - 1, 21, 2);   // Schatten auf dem Weg
+        ctx.drawImage(WALK.bush, ox - 2, o.y + o.h - WALK.bush.height / 2, WALK.bush.width / 2, WALK.bush.height / 2);
+      }
     }
     if (!(G.hitT > 0 && Math.floor(G.hitT * 10) % 2)) {
       const f = G.y < 0 ? 1 : Math.floor(G.dist / 5) % 4;
