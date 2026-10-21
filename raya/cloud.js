@@ -216,7 +216,7 @@ const gate = {
 function drawGateDog() {
   const c = $c('#gateDog'); if (!c) return;
   const img = new Image();
-  Promise.all([fetch('raya-atlas.json').then((r) => r.json()), new Promise((res) => { img.onload = res; img.src = 'raya-atlas.png'; })]).then(([m]) => {
+  Promise.all([fetch('raya-atlas.json').then((r) => r.json()), new Promise((res) => { img.onload = res; img.onerror = () => { img.onerror = null; img.src = 'raya-atlas.png'; }; img.src = 'raya-atlas.webp'; })]).then(([m]) => {
     const t = m.tiles.sit[m.tiles.sit.length - 1], [sx, sy, w, h] = t;
     // Mitte am Körper ausrichten (Kopf + Brust), nicht an der Schwanzspitze
     const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;

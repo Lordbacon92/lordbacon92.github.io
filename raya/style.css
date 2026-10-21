@@ -79,7 +79,7 @@ h1 {
 #hud {
   position: absolute; top: 14px; left: 14px; right: 14px;
   display: flex; justify-content: space-between;
-  font-family: var(--pix); font-size: 10px; color: #fff;
+  font-family: var(--pix); font-size: clamp(11px, 2.4vmin, 18px); color: #fff;
   text-shadow: 2px 2px 0 var(--ink), -1px -1px 0 var(--ink);
   pointer-events: none;
 }
@@ -329,3 +329,5 @@ button.jump {
 button.jump:active, button.jump.down { transform: translateY(5px); box-shadow: 0 2px 0 var(--ink); }
 #quitBtn { align-self: center; }
 .pawline { color: #ffd27a; }
+
+#hud .hp { color: #ff6b6b; letter-spacing: 2px; }

@@ -20,11 +20,11 @@ const ATLAS = { img: null, wimg: null, levels: [], tiles: {}, wear: {} };
 const DECOR = { img: null, meta: {} };   // Deko in Raumperspektive (raya-decor.png): [sx, sy, w, h, x, y, sort]
 async function loadAtlas() {
   const [img, meta, map, dimg] = await Promise.all([
-    loadImg('raya-atlas.png'), fetch('raya-atlas.json').then((r) => r.json()),
+    loadImg('raya-atlas.webp').catch(() => loadImg('raya-atlas.png')), fetch('raya-atlas.json').then((r) => r.json()),
     fetch('room-map.json').then((r) => r.json()), loadImg('room-depth.png'),
   ]);
   ATLAS.img = img; ATLAS.levels = meta.levels; ATLAS.tiles = meta.tiles; ATLAS.wear = meta.wear || {};
-  loadImg('raya-wear.png').then((w) => { ATLAS.wimg = w; }).catch(() => {});
+  loadImg('raya-wear.webp').catch(() => loadImg('raya-wear.png')).then((w) => { ATLAS.wimg = w; }).catch(() => {});
   Promise.all([loadImg('raya-decor.png'), fetch('raya-decor.json').then((r) => r.json())]).then(([i, m]) => { DECOR.img = i; DECOR.meta = m; }).catch(() => {});
   MAP.cell = map.cell; MAP.cols = map.cols; MAP.rows = map.rows; MAP.spots = map.spots; MAP.occOff = map.depthOffset;
   MAP.cells = Uint8Array.from(map.cells, (c) => +c); MAP.depth = Int16Array.from(map.depth);

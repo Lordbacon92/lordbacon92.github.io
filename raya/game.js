@@ -145,20 +145,19 @@ function closedEyes(img, eyes) {
 }
 async function loadDog() {
   // Minispiel-Raya (Bälle fangen / Gassi)
-  const names = ['stand', 'side-small', 'side-small-w1', 'side-small-w2'];
-  const imgs = await Promise.all(names.map((n) => loadImg('raya-' + n + '.png')));
-  names.forEach((n, i) => { DOG[n] = toCanvas(imgs[i]); });
-  DOG['stand-closed'] = closedEyes(imgs[0], EYES.stand);
   const rooms = ['day', 'dusk', 'night'];
   const bgs = await Promise.all(rooms.map((p) => loadImg('room-' + p + '.png')));
   rooms.forEach((p, i) => { ROOM[p] = bgs[i]; });
 }
 /* Zeichnet ein Raya-Sprite mit den Füßen auf y und horizontal zentriert auf cx */
 function drawDog(name, cx, y = FLOOR, flip = false, dy = 0) {
-  const c = DOG[name]; if (!c) return;
-  const x = Math.round(cx - c.width / 2), top = Math.round(y - c.height + dy);
-  if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(c, -x - c.width, top); ctx.restore(); }
-  else ctx.drawImage(c, x, top);
+  // Minispiel-Koordinaten (192×144); gezeichnet wird die 46-px-Stufe aus dem Atlas in echten Pixeln
+  const ts = ATLAS.tiles[name]; if (!ts) return;
+  const [sx, sy, w, h] = ts[ts.length - 1], x = Math.round(cx * 2 - w / 2), top = Math.round((y + dy) * 2 - h);
+  ctx.save(); ctx.scale(0.5, 0.5);
+  if (flip) { ctx.scale(-1, 1); ctx.drawImage(ATLAS.img, sx, sy, w, h, -x - w, top, w, h); }
+  else ctx.drawImage(ATLAS.img, sx, sy, w, h, x, top, w, h);
+  ctx.restore();
 }
 
 /* ================= Hintergrund (96×72, 2× gezeichnet) ================= */
@@ -281,7 +280,7 @@ function need() {
   if (S.hunger < 30) return 'FOOD';
   if (S.thirst < 30) return 'DROP';
   if (S.poops.length) return 'POOP';
-  if (S.clean < 30) return 'BRUSH';
+  if (S.clean < 30) return 'TUB';
   if (S.fun < 30) return 'BALL';
   if (S.energy < 22) return 'MOON';
   return null;
@@ -291,7 +290,7 @@ function statusText() {
   if (m === 'sleep') return 'Raya schläft … zzz';
   if (m === 'sick') return 'Raya ist krank';
   const n = need();
-  const map = { FOOD: 'Raya hat Hunger', DROP: 'Raya hat Durst', POOP: 'Da liegt ein Häufchen …', BRUSH: 'Raya braucht Pflege', BALL: 'Raya ist langweilig', MOON: 'Raya ist müde' };
+  const map = { FOOD: 'Raya hat Hunger', DROP: 'Raya hat Durst', POOP: 'Da liegt ein Häufchen …', TUB: 'Raya braucht ein Bad', BALL: 'Raya ist langweilig', MOON: 'Raya ist müde' };
   if (n) return map[n];
   return m === 'happy' ? 'Raya ist glücklich' : 'Raya ist zufrieden';
 }
@@ -402,7 +401,7 @@ function hud() {
   if (!G || G.paused || G.mode === 'bath') { el.hidden = true; return; }
   el.hidden = false;
   const l = clamp(G.lives, 0, 3), lives = '♥'.repeat(l) + '♡'.repeat(3 - l);
-  el.innerHTML = '<span>' + lives + '</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + '</span>';
+  el.innerHTML = '<span class="hp">' + lives + '</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + '</span>';
 }
 const MOUTH_Y = FLOOR - 46 + 13; // Höhe des Mauls im Steh-Sprite
 function updateGame(dt) {
