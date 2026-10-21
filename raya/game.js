@@ -404,8 +404,7 @@ function updateGame(dt) {
       G.spawn = rnd(0.55, 0.95) * (0.55 + 0.45 * (G.t / 20));
       G.balls.push({ x: rnd(30, 162), y: -16, v: rnd(48, 68) + (20 - G.t) * 2.6, bone: Math.random() < 0.15 });
     }
-    G.x += Math.sign(G.tx - G.x) * Math.min(Math.abs(G.tx - G.x), 150 * dt);
-    G.x = clamp(G.x, 26, 166);
+    G.x = clamp(G.tx, 26, 166);   // folgt dem Finger ohne Verzögerung
     G.catchT -= dt;
     for (let i = G.balls.length - 1; i >= 0; i--) {
       const b = G.balls[i]; b.y += b.v * dt;
@@ -416,7 +415,7 @@ function updateGame(dt) {
     }
   } else {
     G.speed += dt * 1.8; G.dist += (G.speed / U) * dt; G.hitT -= dt;
-    G.vy += 700 * dt; G.y = Math.min(0, G.y + G.vy * dt); if (G.y === 0) G.vy = 0;
+    G.vy += 560 * dt; G.y = Math.min(0, G.y + G.vy * dt); if (G.y === 0) G.vy = 0;
     G.spawn -= dt;
     if (G.spawn <= 0) {
       G.spawn = rnd(1.0, 1.8) * (84 / G.speed);
@@ -427,8 +426,9 @@ function updateGame(dt) {
         : { k: 'hydrant', w: 14, h: 22, y: FLOOR - 22 };
       o.x = W + 8; G.obs.push(o);
     }
-    const c = DOG['side-small'], dx = 22, top = FLOOR - c.height + G.y;
-    const box = [dx + 10, top + 8, dx + c.width - 10, top + c.height];
+    const c = walkTile('side'), dx = 22, top = FLOOR - c[3] + G.y;
+    // Trefferfläche: Rumpf und Beine, ohne Schwanz und Schnauzenspitze
+    const box = [dx + c[2] * 0.2, top + c[3] * 0.3, dx + c[2] * 0.86, top + c[3] - 1];
     for (let i = G.obs.length - 1; i >= 0; i--) {
       const o = G.obs[i]; o.x -= G.speed * dt;
       if (o.x < -32) { G.obs.splice(i, 1); continue; }
@@ -441,8 +441,10 @@ function updateGame(dt) {
   }
   if (G.t <= 0) finishGame();
 }
+/* Gassi-Raya: kleine Stufe aus dem Raya-Atlas (ca. 39 px lang) */
+function walkTile(name) { const t = ATLAS.tiles[name]; return t ? t[1] : [0, 0, 39, 29]; }
 function jump() {
-  if (G && G.mode === 'walk' && !G.paused && G.y === 0) { G.vy = -262; G.y = -0.01; sfx.jump(); }
+  if (G && G.mode === 'walk' && !G.paused && G.y === 0) { G.vy = -250; G.y = -0.01; sfx.jump(); }
 }
 function drawGame() {
   if (G.mode === 'play') {
@@ -471,10 +473,10 @@ function drawGame() {
       }
     }
     if (!(G.hitT > 0 && Math.floor(G.hitT * 10) % 2)) {
-      const c = DOG['side-small'];
       const f = G.y < 0 ? 1 : Math.floor(G.dist / 5) % 4;
-      const name = ['side-small', 'side-small-w1', 'side-small', 'side-small-w2'][f];
-      drawDog(name, 22 + c.width / 2, FLOOR, true, G.y + (f % 2 ? -2 : 0));
+      const name = ['side', 'side-w1', 'side', 'side-w2'][f];
+      const [sx, sy, w, h] = walkTile(name), x = 22, y = Math.round(FLOOR - h + G.y + (f % 2 ? -1 : 0));
+      ctx.save(); ctx.scale(-1, 1); ctx.drawImage(ATLAS.img, sx, sy, w, h, -x - w, y, w, h); ctx.restore();
     }
   }
   drawParticles();
