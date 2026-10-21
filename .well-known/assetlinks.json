@@ -1,8 +1,15 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "io.github.lordbacon92.twa",
-        "sha256_cert_fingerprints": ["6D:0E:79:89:65:B3:1E:12:73:6D:43:AF:2E:DA:62:2C:4A:9D:70:8C:D2:3D:1D:C2:42:F0:1C:E4:7A:A9:36:92"]
-      }
-    }]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.lordbacon92.twa",
+      "sha256_cert_fingerprints": [
+        "6D:0E:79:89:65:B3:1E:12:73:6D:43:AF:2E:DA:62:2C:4A:9D:70:8C:D2:3D:1D:C2:42:F0:1C:E4:7A:A9:36:92",
+        "81:92:C1:61:F1:80:15:01:B4:4F:ED:F2:E0:18:23:D2:B8:75:3A:B9:0B:FF:18:19:CF:A7:AB:DE:E3:A3:64:CB"
+      ]
+    }
+  }
+]
