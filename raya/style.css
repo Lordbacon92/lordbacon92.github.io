@@ -314,3 +314,18 @@ button:disabled { opacity: .5; cursor: default; transform: none; }
 #gateText { font-size: 21px; line-height: 1.1; margin: 0 0 12px; }
 .gatebox button.small { margin: 4px 4px 0; }
 body.gated .shell { visibility: hidden; }
+
+/* ---------- Minispiel-Bedienung ---------- */
+body.ingame #status, body.ingame .stats, body.ingame .actions, body.ingame .foot { display: none; }
+#gamepad { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 10px 0 4px; flex: 1; justify-content: center; }
+#gamepad[hidden] { display: none; }
+#gameHint { font-size: 22px; text-align: center; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); margin: 0; line-height: 1.1; }
+button.jump {
+  font-family: var(--pix); font-size: 20px; letter-spacing: 2px;
+  min-height: clamp(120px, 26dvh, 260px); border-radius: 22px; border-width: 4px;
+  background: #f7d58a; box-shadow: 0 7px 0 var(--ink);
+  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+button.jump:active, button.jump.down { transform: translateY(5px); box-shadow: 0 2px 0 var(--ink); }
+#quitBtn { align-self: center; }
+.pawline { color: #ffd27a; }

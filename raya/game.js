@@ -378,11 +378,12 @@ function startGame(mode) {
   toastQ.length = 0; clearTimeout(toastTimer); toastTimer = 0; $('#toast').classList.remove('show');
   if (mode === 'walk') {
     G = { mode, paused: true, t: 0, score: 0, lives: 3, y: 0, vy: 0, obs: [], spawn: 1.4, speed: 84, dist: 0, hitT: 0 };
-    overlay('Gassi gehen', 'Tippen = springen.<br>Sammle Leckerli, spring über Pfützen, Büsche &amp; Hydranten.<br>Es wird immer schneller – nach 3 Treffern ist Schluss.', 'Los!', () => { G.paused = false; });
+    overlay('Gassi gehen', 'Tipp auf „Springen“ oder ins Bild.<br>Sammle Leckerli, spring über Pfützen, Büsche &amp; Hydranten.<br>Es wird immer schneller – nach 3 Treffern ist Schluss.', 'Los!', () => { G.paused = false; });
   } else {
     G = { mode, paused: true, t: 0, score: 0, lives: 3, balls: [], spawn: 0.6, x: 96, tx: 96, catchT: 0, hurtT: 0 };
     overlay('Bälle fangen', 'Zieh Raya nach links und rechts und fang die Bälle.<br>Knochen zählen dreifach!<br>Finger weg von Schokolade – 3× erwischt, dann ist Schluss.', 'Los!', () => { G.paused = false; });
   }
+  setGameUI(mode);
   updateUI();
 }
 function hud() {
@@ -485,15 +486,15 @@ function drawGame() {
   drawParticles();
 }
 function finishGame() {
-  const g = G; G = null; S.counts.games++;
-  let msg;
+  const g = G; G = null; S.counts.games++; setGameUI(null);
+  let msg, rec;
   if (g.mode === 'play') {
     const mins = g.t / 60; S.fun += Math.min(38, 10 + g.score * 2); S.energy -= Math.min(22, 8 + mins * 8); S.hunger -= 4; S.thirst -= Math.min(14, 6 + mins * 4);
-    const rec = g.score > S.best.play; if (rec) S.best.play = g.score;
+    rec = g.score > S.best.play; if (rec) S.best.play = g.score;
     msg = g.score + (g.score === 1 ? ' Ball' : ' Bälle') + ' gefangen!' + (rec ? '<br>Neuer Rekord!' : '<br>Rekord: ' + S.best.play);
   } else {
     const mins = g.t / 60; S.fun += Math.min(38, 14 + g.score * 2); S.energy -= Math.min(26, 10 + mins * 9); S.thirst -= Math.min(18, 8 + mins * 5); S.clean -= 10; S.counts.walks++;
-    const rec = g.score > S.best.walk; if (rec) S.best.walk = g.score;
+    rec = g.score > S.best.walk; if (rec) S.best.walk = g.score;
     msg = g.score + ' Leckerli gefunden!' + (rec ? '<br>Neuer Rekord!' : '<br>Rekord: ' + S.best.walk);
     if (S.pending.length || S.poops.length) {
       S.pending = []; S.clean += 6;
@@ -503,8 +504,29 @@ function finishGame() {
   }
   clampAll(); save(); sfx.good();
   placeFloor('start');
-  overlay(g.mode === 'play' ? 'Super gespielt!' : 'Zurück vom Gassi!', msg, 'Weiter', () => play('pet', 1.2));
+  const title = g.mode === 'play' ? 'Super gespielt!' : 'Zurück vom Gassi!';
+  overlay(title, msg, 'Weiter', () => play('pet', 1.2));
   updateUI();
+  // Pfoten für den Shop – je mehr Punkte, desto mehr (mit Tageslimit)
+  if (typeof awardGamePaws === 'function' && g.score > 0) {
+    awardGamePaws(g.mode, g.score, rec).then((r) => {
+      const p = $('#overlay p'); if (!p || $('#overlay').hidden) return;
+      const line = document.createElement('span'); line.className = 'pawline';
+      line.textContent = r.paws > 0 ? '+' + r.paws + ' Pfoten' + (r.capped ? ' (Tageslimit erreicht)' : '') : 'Heute gibt es keine Pfoten mehr aus Spielen.';
+      p.append(document.createElement('br'), line);
+      if (r.paws > 0) sfx.catch();
+    }).catch(() => {});
+  }
+}
+
+/* ---------- Bedienung während eines Minispiels ---------- */
+function setGameUI(mode) {
+  document.body.classList.toggle('ingame', !!mode);
+  const pad = $('#gamepad'); if (!pad) return;
+  pad.hidden = !mode;
+  $('#jumpBtn').hidden = mode !== 'walk';
+  $('#gameHint').textContent = mode === 'play' ? 'Zieh Raya über das Bild – fang Bälle, keine Schokolade!' : '';
+  $('#gameHint').hidden = mode !== 'play';
 }
 
 /* ================= UI aufbauen ================= */
@@ -650,6 +672,17 @@ Promise.all([loadDog(), loadAtlas()]).then(() => { if (S.sleeping) placeSleep();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+/* Springen-Knopf & Beenden (Minispiele) */
+(() => {
+  const jb = document.getElementById('jumpBtn'), qb = document.getElementById('quitBtn');
+  if (jb) {
+    jb.addEventListener('pointerdown', (e) => { e.preventDefault(); jb.classList.add('down'); jump(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => jb.addEventListener(t, () => jb.classList.remove('down')));
+    jb.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  if (qb) qb.addEventListener('click', () => { if (G) { G.paused = false; $('#overlay').hidden = true; finishGame(); } });
+})();
 
 /* Vollbild-Knopf (nur wo der Browser es kann und nicht schon als App läuft) */
 (() => {

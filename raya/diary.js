@@ -179,6 +179,26 @@ async function deleteEntry(entry) {
   if (window.RayaCloud) RayaCloud.deleted(entry);
 }
 
+/* ---------- Pfoten aus Minispielen (Tageslimit, atomar) ---------- */
+const GAME_PAWS = { perPoint: { play: 1 / 3, walk: 1 / 2 }, record: 5, dailyCap: 40 };
+async function awardGamePaws(mode, score, record) {
+  const db = await openDB();
+  const tx = db.transaction('meta', 'readwrite'), done = txDone(tx), M = tx.objectStore('meta');
+  const [wallet, rewards] = await Promise.all([getMeta(M, 'wallet'), getMeta(M, 'rewards')]);
+  const today = dayKey();
+  const already = rewards.log.filter((g) => g.type === 'game' && g.day === today).reduce((n, g) => n + (g.paws || 0), 0);
+  const want = Math.floor(score * GAME_PAWS.perPoint[mode]) + (record ? GAME_PAWS.record : 0);
+  const paws = Math.max(0, Math.min(want, GAME_PAWS.dailyCap - already));
+  if (paws > 0) {
+    wallet.paws += paws;
+    rewards.log.push({ at: Date.now(), day: today, type: 'game', mode, score, paws });
+    M.put(wallet); M.put(rewards);
+  }
+  await done;
+  EXTRAS.paws = wallet.paws; updatePawBadge(); if (paws > 0) cloudChanged();
+  return { paws, capped: paws < want, left: GAME_PAWS.dailyCap - already - paws };
+}
+
 /* ---------- Shop ---------- */
 async function buyItem(id) {
   const it = ITEM_BY_ID[id];
