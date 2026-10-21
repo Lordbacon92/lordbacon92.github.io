@@ -1,8 +1,8 @@
 // Raya – Offline-Cache: erst Netz (immer aktuell), bei fehlender Verbindung aus dem Cache
-const V = 'raya-v28';
+const V = 'raya-v30';
 const ASSETS = ['./', 'index.html', 'style.css', 'sprites.js', 'items.js', 'scene.js', 'game.js', 'diary.js', 'cloud.js', 'firebase-config.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'vt323.woff2', 'press-start-2p.woff2',
-  'raya-atlas.png', 'raya-atlas.json', 'raya-wear.png', 'raya-decor.png', 'raya-decor.json', 'raya-stand.png', 'raya-side-small.png', 'raya-side-small-w1.png', 'raya-side-small-w2.png',
+  'raya-atlas.png', 'raya-atlas.json', 'raya-wear.png', 'raya-decor.png', 'walk-trees.png', 'walk-ground.png', 'walk-bush.png', 'raya-decor.json', 'raya-stand.png', 'raya-side-small.png', 'raya-side-small-w1.png', 'raya-side-small-w2.png',
   'room-day.png', 'room-dusk.png', 'room-night.png', 'room-map.json', 'room-depth.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(V).then((c) => c.addAll(ASSETS)));

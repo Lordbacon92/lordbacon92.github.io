@@ -206,39 +206,50 @@ function roomBg(phase) {
   return c;
 }
 function drawRoomBg() { const r = ROOM[skyPhase()]; if (r) ctx.drawImage(r, 0, 0, W, H); else ctx.drawImage(roomBg(skyPhase()), 0, 0, W, H); }
+/* Gassi-Landschaft: Baumreihe & Wiesenboden aus Alex' Pixelgrafik (walk-trees.png / walk-ground.png),
+   gezeichnet in echten Bildschirmpixeln (384×288), mit Parallaxe */
+const WALK = { trees: null, ground: null, bush: null };
+Promise.all([loadImg('walk-trees.png'), loadImg('walk-ground.png'), loadImg('walk-bush.png')]).then(([t, g, b]) => { WALK.trees = t; WALK.ground = g; WALK.bush = b; }).catch(() => {});
 function walkBg(dist) {
-  ctx.save(); ctx.scale(U, U);
-  const ph = skyPhase();
-  const sky = { day: ['#9ad6f2', '#cfeefa'], dusk: ['#f0a35e', '#f7cf8a'], night: ['#1c2350', '#38407a'] }[ph];
-  ctx.fillStyle = sky[0]; ctx.fillRect(0, 0, 96, 30);
-  ctx.fillStyle = sky[1]; ctx.fillRect(0, 30, 96, 18);
-  for (let i = -1; i < 4; i++) {
-    const hx = Math.floor(i * 40 - ((dist * 0.15) % 40));
-    ctx.fillStyle = ph === 'night' ? '#2b3a4a' : '#8cbf7a';
-    for (let xx = 0; xx < 40; xx++) {
-      const hh = Math.round(8 + Math.sin((xx / 40) * Math.PI) * 9);
-      ctx.fillRect(hx + xx, 48 - hh, 1, hh);
+  ctx.save(); ctx.scale(0.5, 0.5);            // zurück auf 1:1-Pixel
+  const ph = skyPhase(), off = dist * 4;      // Weg in echten Pixeln
+  const sky = { day: ['#a9daf3', '#dff2fb'], dusk: ['#f0a35e', '#f7cf8a'], night: ['#1c2350', '#38407a'] }[ph];
+  const grd = ctx.createLinearGradient(0, 0, 0, 210); grd.addColorStop(0, sky[0]); grd.addColorStop(1, sky[1]);
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, 384, 210);
+  // ferne Berge (blass, wie im Vorbild)
+  ctx.fillStyle = ph === 'night' ? '#2d3a5c' : ph === 'dusk' ? '#d9a88a' : '#c8d9e8';
+  for (let x = 0; x < 384; x += 2) {
+    const wx = x + off * 0.08;
+    const h = 46 + Math.sin(wx / 61) * 22 + Math.sin(wx / 23 + 1.3) * 8;
+    ctx.fillRect(x, Math.round(214 - h), 2, Math.ceil(h));
+  }
+  // Wiese hinter dem Weg
+  ctx.fillStyle = ph === 'night' ? '#2b5a2c' : '#79ad42'; ctx.fillRect(0, 210, 384, 56);
+  ctx.fillStyle = ph === 'night' ? '#244d26' : '#669c38'; ctx.fillRect(0, 238, 384, 28);
+  // Baumreihe, abwechselnd gespiegelt, mit Lücke
+  const T = WALK.trees;
+  if (T) {
+    const tw = T.width * 2, th = T.height * 2;   // Pixel verdoppelt
+    const step = tw + 70, base = 252 - th, o = (off * 0.45) % (step * 2);
+    for (let k = -1; k < 4; k++) {
+      const x = Math.round(k * step - o), flip = ((k % 2) + 2) % 2 === 1;
+      if (x > 384 || x + tw < 0) continue;
+      if (flip) { ctx.save(); ctx.scale(-1, 1); ctx.drawImage(T, -x - tw, base, tw, th); ctx.restore(); }
+      else ctx.drawImage(T, x, base, tw, th);
     }
   }
-  for (let i = -1; i < 5; i++) {
-    const tx = Math.floor(i * 28 - ((dist * 0.45) % 28)) + 10;
-    ctx.fillStyle = '#5a3a20'; ctx.fillRect(tx + 3, 36, 3, 14);
-    ctx.fillStyle = ph === 'night' ? '#1f4a2c' : '#3f8a44';
-    for (let yy = -7; yy <= 7; yy++) for (let xx = -7; xx <= 7; xx++) {
-      if (xx * xx + yy * yy <= 46) ctx.fillRect(tx + 4 + xx, 31 + yy, 1, 1);
-    }
-  }
-  ctx.fillStyle = ph === 'night' ? '#26502c' : '#5fae4e'; ctx.fillRect(0, 48, 96, 12);
-  ctx.fillStyle = '#b89a72'; ctx.fillRect(0, 60, 96, 12);
-  ctx.fillStyle = '#9c7f5a';
-  for (let i = 0; i < 14; i++) {
-    const px = Math.floor((i * 23 - dist) % 96 + 96) % 96;
-    ctx.fillRect(px, 63 + (i % 4) * 2, 2, 1);
-  }
-  ctx.fillStyle = ph === 'night' ? '#1d3d22' : '#4a9a3e';
-  for (let i = 0; i < 20; i++) {
-    const px = Math.floor((i * 17 - dist) % 96 + 96) % 96;
-    ctx.fillRect(px, 59, 1, 2);
+  // Weg: Grasplatte (kachelbar) + Erde darunter
+  const G2 = WALK.ground;
+  if (G2) {
+    const gw = G2.width * 2, gh = G2.height * 2, gy = 260, o = off % gw;
+    for (let x = -Math.round(o); x < 384; x += gw) ctx.drawImage(G2, x, gy, gw, gh);
+    ctx.fillStyle = '#2c4f22'; ctx.fillRect(0, gy + gh, 384, Math.max(0, 288 - gy - gh));
+  } else { ctx.fillStyle = '#5fae4e'; ctx.fillRect(0, 262, 384, 26); }
+  // Tageszeit-Tönung
+  if (ph !== 'day') {
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = ph === 'night' ? '#4a5590' : '#f2b98a'; ctx.fillRect(0, 0, 384, 288);
+    ctx.globalCompositeOperation = 'source-over';
   }
   ctx.restore();
 }
@@ -427,7 +438,7 @@ function updateGame(dt) {
       const r = Math.random();
       const o = r < 0.3 ? { k: 'bone', w: 22, h: 14, y: Math.round(rnd(58, 92)) }
         : r < 0.55 ? { k: 'puddle', w: 26, h: 6, y: FLOOR - 5 }
-        : r < 0.8 ? { k: 'bush', w: 22, h: 16, y: FLOOR - 16 }
+        : r < 0.8 ? { k: 'bush', w: 19, h: 20, y: FLOOR - 20 }
         : { k: 'hydrant', w: 14, h: 22, y: FLOOR - 22 };
       o.x = W + 8; G.obs.push(o);
     }
@@ -467,14 +478,7 @@ function drawGame() {
         ctx.fillStyle = '#5aa6e0'; ctx.fillRect(ox + 4, o.y + 2, o.w - 8, 4);
         ctx.fillStyle = '#b7e1f7'; ctx.fillRect(ox + 8, o.y + 2, 6, 2);
       }
-      if (o.k === 'bush') {
-        for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 11; xx++) {
-          const e = ((xx - 5) / 5.6) ** 2 + ((yy - 7) / 7.2) ** 2;
-          if (e > 1) continue;
-          ctx.fillStyle = e > 0.75 ? '#24120a' : hash(xx, yy) < 0.3 ? '#2f6b33' : '#3f9a49';
-          ctx.fillRect(ox + xx * U, o.y + yy * U, U, U);
-        }
-      }
+      if (o.k === 'bush' && WALK.bush) ctx.drawImage(WALK.bush, ox, o.y + o.h - WALK.bush.height / 2, WALK.bush.width / 2, WALK.bush.height / 2);
     }
     if (!(G.hitT > 0 && Math.floor(G.hitT * 10) % 2)) {
       const f = G.y < 0 ? 1 : Math.floor(G.dist / 5) % 4;
