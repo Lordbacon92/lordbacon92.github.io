@@ -542,10 +542,19 @@ function startBath() {
   for (let tries = 0; spots.length < n && tries < 600; tries++) {
     const lx = Math.round(rnd(5, w - 5)), ly = Math.round(rnd(12, (FOAM_Y + 6 - y0) / BK));
     if (px[(ly * w + lx) * 4 + 3] < 200) continue;
+    if (ly > 9 && ly < 27 && lx > 11 && lx < 36) continue;   // Augen & Schnauze frei lassen
     const X = x0 + Math.round(lx * BK), Y = y0 + Math.round(ly * BK);
     if (spots.some((p) => Math.hypot(p.x - X, p.y - Y) < 11)) continue;
-    const r = rnd(3.5, 6.5), pts = [];
-    for (let k = 0; k < 7; k++) pts.push([Math.round(rnd(-r, r)), Math.round(rnd(-r * 0.8, r * 0.8))]);
+    // Schlammfleck als zusammenhängender Pixelklecks (hell-graubraun, gut sichtbar auf dunklem Fell)
+    const r = rnd(4, 6.5), pts = [], seed = Math.random() * 10;
+    for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+      const ang = Math.atan2(dy, dx), rr = r * (0.9 + 0.1 * Math.sin(ang * 2 + seed) + 0.06 * Math.sin(ang * 3 - seed));
+      const d = Math.hypot(dx, dy * 1.15);
+      if (d > rr) continue;
+      const tx = Math.floor((X + dx - x0) / BK), ty = Math.floor((Y + dy - y0) / BK);   // nur auf Rayas Fell
+      if (tx < 0 || ty < 0 || tx >= w || ty >= h || px[(ty * w + tx) * 4 + 3] < 200) continue;
+      pts.push([dx, dy, d > rr - 1.3 ? 0 : (dx < -1 && dy < -1 && d < rr * 0.5 ? 2 : 1)]);
+    }
     spots.push({ x: X, y: Y, r, a: 1, pts });
   }
   G = { mode: 'bath', paused: false, t: 0, spots, total: spots.length, bubbles: [], fx: -99, fy: -99, down: false, happyT: 0, score: 0 };
@@ -582,10 +591,8 @@ function drawBath() {
     // Flecken
     for (const p of G.spots) {
       ctx.globalAlpha = Math.max(0, p.a);
-      ctx.fillStyle = '#4a2e16';
-      for (const [dx, dy] of p.pts) ctx.fillRect(Math.round(p.x + dx - 1.5), Math.round(p.y + dy - 1.5 + bob), 3, 3);
-      ctx.fillStyle = '#6e4a24';
-      for (const [dx, dy] of p.pts) ctx.fillRect(Math.round(p.x + dx * 0.6 - 1), Math.round(p.y + dy * 0.6 - 1 + bob), 2, 2);
+      const MUD = ['#3b2a1c', '#8b7356', '#b49c7c'];   // Rand, Schlamm, Glanz
+      for (const [dx, dy, k] of p.pts) { ctx.fillStyle = MUD[k]; ctx.fillRect(Math.round(p.x + dx), Math.round(p.y + dy + bob), 1, 1); }
       ctx.globalAlpha = 1;
     }
   }

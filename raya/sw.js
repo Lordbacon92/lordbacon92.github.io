@@ -1,5 +1,5 @@
 // Raya – Offline-Cache: erst Netz (immer aktuell), bei fehlender Verbindung aus dem Cache
-const V = 'raya-v34';
+const V = 'raya-v35';
 const ASSETS = ['./', 'index.html', 'style.css', 'sprites.js', 'items.js', 'scene.js', 'game.js', 'diary.js', 'cloud.js', 'firebase-config.js', 'manifest.webmanifest',
   'icon-192.png', 'icon-512.png', 'pixelify-400.woff2', 'pixelify-700.woff2',
   'raya-atlas.webp', 'raya-atlas.json', 'raya-wear.webp', 'raya-decor.png', 'walk-trees.png', 'walk-ground.png', 'walk-bush.png', 'bath-room.png', 'bath-tub.png', 'bath-tubfront.png', 'bath-foam.png', 'raya-decor.json',
