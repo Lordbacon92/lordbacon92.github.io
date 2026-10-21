@@ -25,6 +25,7 @@ function freshState() {
   };
 }
 function load() {
+  if (window.RAYA_DEMO) return null;   // Demo: immer frisch, nichts laden
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.v === 1) { s.v = 2; (s.poops || []).forEach((p) => { p.x *= 2; }); }
@@ -35,7 +36,7 @@ function load() {
 let S = load();
 const firstVisit = !S;
 if (!S) S = freshState();
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignorieren */ } }
+function save() { if (window.RAYA_DEMO) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignorieren */ } }
 
 const STATS = [
   ['hunger', 'Satt'], ['thirst', 'Durst'], ['fun', 'Laune'],

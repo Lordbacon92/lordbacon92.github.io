@@ -9,7 +9,7 @@
               { key:'active',    outfit, decor[] }      – angezogene / aufgestellte Gegenstände
    Belohnungen und Käufe passieren jeweils in EINER Transaktion – keine Doppelvergabe möglich. */
 
-const DB_NAME = 'raya-db', DB_VERSION = 1;
+const DB_NAME = window.RAYA_DEMO ? 'raya-demo' : 'raya-db', DB_VERSION = 1;   // Demo: eigene Wegwerf-Datenbank
 const MAX_FILE_BYTES = 30 * 1024 * 1024;   // Originaldatei
 const MAX_EDGE = 1280, THUMB_EDGE = 256;   // gespeicherte Größe
 const EXTRAS = { ready: false, failed: false, paws: 0, owned: new Set(), outfit: null, decor: new Set() };
@@ -29,7 +29,8 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 let dbP = null;
 function openDB() {
   if (dbP) return dbP;
-  dbP = new Promise((res, rej) => {
+  const fresh = window.RAYA_DEMO && !openDB.cleared ? new Promise((r) => { openDB.cleared = true; try { const d = indexedDB.deleteDatabase(DB_NAME); d.onsuccess = d.onerror = d.onblocked = () => r(); } catch (e) { r(); } }) : Promise.resolve();
+  dbP = fresh.then(() => new Promise((res, rej) => {
     if (!('indexedDB' in window)) { rej(new Error('nodb')); return; }
     let r;
     try { r = indexedDB.open(DB_NAME, DB_VERSION); } catch (e) { rej(e); return; }
@@ -42,7 +43,7 @@ function openDB() {
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
     r.onblocked = () => rej(new Error('blocked'));
-  });
+  }));
   dbP.catch(() => { dbP = null; });
   return dbP;
 }
@@ -65,6 +66,10 @@ async function getMeta(store, key) { return (await rq(store.get(key))) || META_D
 async function loadExtras() {
   try {
     const db = await openDB();
+    if (window.RAYA_DEMO) {   // Demo: 600 Pfoten zum Ausprobieren des Shops
+      const tx = db.transaction('meta', 'readwrite'), M = tx.objectStore('meta'), w = await getMeta(M, 'wallet');
+      if (!w.demo) { w.paws += 600; w.demo = true; M.put(w); } await txDone(tx);
+    }
     const tx = db.transaction('meta', 'readonly'), st = tx.objectStore('meta');
     const [w, inv, act] = await Promise.all([getMeta(st, 'wallet'), getMeta(st, 'inventory'), getMeta(st, 'active')]);
     applyExtras(w, inv, act);

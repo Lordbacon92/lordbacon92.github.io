@@ -331,3 +331,8 @@ button.jump:active, button.jump.down { transform: translateY(5px); box-shadow: 0
 .pawline { color: #ffd27a; }
 
 #hud .hp { color: #ff6b6b; letter-spacing: 2px; }
+
+#demoTag { color: #ffd27a; }
+#demoTag a { color: var(--cream); }
+#gateDemo { margin-top: 10px; }
+.gatebox .small-note { font-size: 16px; margin: 8px 0 0; }

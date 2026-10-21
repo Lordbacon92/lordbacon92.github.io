@@ -22,13 +22,15 @@
     <button id="gateLogin" class="big" hidden>Mit Google anmelden</button>
     <button id="gateRetry" class="small" hidden>Erneut versuchen</button>
     <button id="gateOffline" class="small" hidden>Offline weiterspielen</button>
+    <button id="gateDemo" class="small">Demo-Modus</button>
+    <p class="muted small-note">Im Demo-Modus kannst du alles ausprobieren – es wird aber nichts gespeichert.</p>
     <p id="gateErr" class="msg err"></p>
   </div>
 </div>
 <main class="shell">
   <header class="top">
     <h1>RAYA</h1>
-    <div class="meta"><span id="age">Tag 1</span></div>
+    <div class="meta"><span id="demoTag" hidden>DEMO · <a href="./" id="demoExit">Anmelden</a></span> <span id="age">Tag 1</span></div>
   </header>
   <div class="bezel">
     <canvas id="screen" width="384" height="288" aria-label="Raya"></canvas>
@@ -157,6 +159,7 @@
 <input id="fileCam" type="file" accept="image/*" capture="environment" hidden>
 <input id="fileAny" type="file" accept="image/*" hidden>
 
+<script>window.RAYA_DEMO = new URLSearchParams(location.search).has('demo');</script>
 <script src="sprites.js"></script>
 <script src="items.js"></script>
 <script src="scene.js"></script>

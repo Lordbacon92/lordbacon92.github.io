@@ -235,10 +235,15 @@ function initGate() {
   $c('#gateLogin').addEventListener('click', async () => { $c('#gateLogin').disabled = true; await C.signIn(); $c('#gateLogin').disabled = false; if (!C.user) gate.show('Melde dich an, damit Raya auf all deinen Geräten bei dir ist.', { login: true }); });
   $c('#gateRetry').addEventListener('click', () => location.reload());
   $c('#gateOffline').addEventListener('click', () => gate.hide());
+  $c('#gateDemo').addEventListener('click', () => { location.href = './?demo=1'; });
 }
 
 async function start() {
-  initUI(); initGate();
+  initUI();
+  if (window.RAYA_DEMO) {   // Demo: kein Login, kein Abgleich, nichts gespeichert
+    gate.hide(); $c('#demoTag').hidden = false; return;
+  }
+  initGate();
   const cfg = window.RAYA_FIREBASE;
   try {
     if (window.__rayaCloudMock) B = window.__rayaCloudMock;
