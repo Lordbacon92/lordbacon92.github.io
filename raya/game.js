@@ -377,11 +377,11 @@ function startGame(mode) {
   if (S.sick) { toast('Raya ist krank – erst zum Tierarzt.'); play('nope', 0.6); return; }
   toastQ.length = 0; clearTimeout(toastTimer); toastTimer = 0; $('#toast').classList.remove('show');
   if (mode === 'walk') {
-    G = { mode, paused: true, t: 30, score: 0, lives: 3, y: 0, vy: 0, obs: [], spawn: 1.4, speed: 84, dist: 0, hitT: 0 };
-    overlay('Gassi gehen', 'Tippen = springen.<br>Sammle Leckerli, spring über Pfützen, Büsche &amp; Hydranten.', 'Los!', () => { G.paused = false; });
+    G = { mode, paused: true, t: 0, score: 0, lives: 3, y: 0, vy: 0, obs: [], spawn: 1.4, speed: 84, dist: 0, hitT: 0 };
+    overlay('Gassi gehen', 'Tippen = springen.<br>Sammle Leckerli, spring über Pfützen, Büsche &amp; Hydranten.<br>Es wird immer schneller – nach 3 Treffern ist Schluss.', 'Los!', () => { G.paused = false; });
   } else {
-    G = { mode, paused: true, t: 20, score: 0, balls: [], spawn: 0.6, x: 96, tx: 96, catchT: 0 };
-    overlay('Bälle fangen', 'Zieh Raya nach links und rechts und fang die Bälle.<br>Knochen zählen dreifach!', 'Los!', () => { G.paused = false; });
+    G = { mode, paused: true, t: 0, score: 0, lives: 3, balls: [], spawn: 0.6, x: 96, tx: 96, catchT: 0, hurtT: 0 };
+    overlay('Bälle fangen', 'Zieh Raya nach links und rechts und fang die Bälle.<br>Knochen zählen dreifach!<br>Finger weg von Schokolade – 3× erwischt, dann ist Schluss.', 'Los!', () => { G.paused = false; });
   }
   updateUI();
 }
@@ -389,32 +389,36 @@ function hud() {
   const el = $('#hud');
   if (!G || G.paused) { el.hidden = true; return; }
   el.hidden = false;
-  const lives = G.mode === 'walk' ? ' ' + '♥'.repeat(G.lives) + '♡'.repeat(3 - G.lives) : '';
-  el.innerHTML = '<span>' + Math.ceil(G.t) + 's</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + lives + '</span>';
+  const l = clamp(G.lives, 0, 3), lives = '♥'.repeat(l) + '♡'.repeat(3 - l);
+  el.innerHTML = '<span>' + lives + '</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + '</span>';
 }
 const MOUTH_Y = FLOOR - 46 + 13; // Höhe des Mauls im Steh-Sprite
 function updateGame(dt) {
   clock += dt;
   tickParticles(dt);
   if (G.paused) return;
-  G.t -= dt;
+  G.t += dt;   // Spieldauer – kein Zeitlimit, Ende nur über die Leben
   if (G.mode === 'play') {
     G.spawn -= dt;
     if (G.spawn <= 0) {
-      G.spawn = rnd(0.55, 0.95) * (0.55 + 0.45 * (G.t / 20));
-      G.balls.push({ x: rnd(30, 162), y: -16, v: rnd(48, 68) + (20 - G.t) * 2.6, bone: Math.random() < 0.15 });
+      const lvl = Math.min(1, G.t / 90);   // nach ~1,5 Minuten volle Schwierigkeit
+      G.spawn = rnd(0.55, 0.95) * (1 - 0.5 * lvl);
+      const r = Math.random(), choc = r < 0.12 + 0.18 * lvl;
+      G.balls.push({ x: rnd(30, 162), y: -16, v: rnd(48, 68) + G.t * 0.9, bone: !choc && r < 0.27, choc });
     }
     G.x = clamp(G.tx, 26, 166);   // folgt dem Finger ohne Verzögerung
-    G.catchT -= dt;
+    G.catchT -= dt; G.hurtT -= dt;
     for (let i = G.balls.length - 1; i >= 0; i--) {
       const b = G.balls[i]; b.y += b.v * dt;
       if (b.y > MOUTH_Y - 12 && b.y < MOUTH_Y + 8 && Math.abs(b.x - G.x) < 11) {
-        G.score += b.bone ? 3 : 1; G.catchT = 0.3; G.balls.splice(i, 1); sfx.catch(); buzz(8);
+        G.balls.splice(i, 1);
+        if (b.choc) { G.lives--; G.hurtT = 0.6; sfx.bad(); buzz(80); for (let k = 0; k < 4; k++) spark(G.x + rnd(-8, 8), MOUTH_Y + rnd(-6, 6)); if (G.lives <= 0) { finishGame(); return; } continue; }
+        G.score += b.bone ? 3 : 1; G.catchT = 0.3; sfx.catch(); buzz(8);
         for (let k = 0; k < 3; k++) spark(G.x + rnd(-8, 8), MOUTH_Y + rnd(-6, 6));
       } else if (b.y > H + 8) G.balls.splice(i, 1);
     }
   } else {
-    G.speed += dt * 1.8; G.dist += (G.speed / U) * dt; G.hitT -= dt;
+    G.speed = Math.min(300, G.speed + dt * (1.5 + G.t * 0.02)); G.dist += (G.speed / U) * dt; G.hitT -= dt;
     G.vy += 560 * dt; G.y = Math.min(0, G.y + G.vy * dt); if (G.y === 0) G.vy = 0;
     G.spawn -= dt;
     if (G.spawn <= 0) {
@@ -437,9 +441,8 @@ function updateGame(dt) {
       if (o.k === 'bone') { G.score++; G.obs.splice(i, 1); sfx.catch(); spark(o.x + 10, o.y + 6); }
       else if (G.hitT <= 0) { G.lives--; G.hitT = 1.2; sfx.bad(); buzz(60); }
     }
-    if (G.lives <= 0) G.t = 0;
+    if (G.lives <= 0) finishGame();
   }
-  if (G.t <= 0) finishGame();
 }
 /* Gassi-Raya: kleine Stufe aus dem Raya-Atlas (ca. 39 px lang) */
 function walkTile(name) { const t = ATLAS.tiles[name]; return t ? t[1] : [0, 0, 39, 29]; }
@@ -449,9 +452,9 @@ function jump() {
 function drawGame() {
   if (G.mode === 'play') {
     drawRoomBg();
-    for (const b of G.balls) drawSpr(b.bone ? 'BONE' : 'BALL', b.x - (b.bone ? 5 : 4), b.y - 4, false, 1);
+    for (const b of G.balls) drawSpr(b.choc ? 'CHOC' : b.bone ? 'BONE' : 'BALL', b.x - (b.bone ? 5 : 4), b.y - (b.choc ? 5 : 4), false, 1);
     const lookUp = G.balls.some((b) => b.y > MOUTH_Y - 40 && Math.abs(b.x - G.x) < 20);
-    drawDog(G.catchT > 0 ? 'stand-closed' : 'stand', G.x, FLOOR, false, G.catchT > 0 ? -4 : (lookUp ? -1 : 0));
+    if (!(G.hurtT > 0 && Math.floor(G.hurtT * 12) % 2)) drawDog(G.catchT > 0 || G.hurtT > 0 ? 'stand-closed' : 'stand', G.x, FLOOR, false, G.catchT > 0 ? -4 : (lookUp ? -1 : 0));
   } else {
     walkBg(G.dist);
     for (const o of G.obs) {
@@ -485,11 +488,11 @@ function finishGame() {
   const g = G; G = null; S.counts.games++;
   let msg;
   if (g.mode === 'play') {
-    S.fun += Math.min(38, 10 + g.score * 2); S.energy -= 12; S.hunger -= 4; S.thirst -= 8;
+    const mins = g.t / 60; S.fun += Math.min(38, 10 + g.score * 2); S.energy -= Math.min(22, 8 + mins * 8); S.hunger -= 4; S.thirst -= Math.min(14, 6 + mins * 4);
     const rec = g.score > S.best.play; if (rec) S.best.play = g.score;
     msg = g.score + (g.score === 1 ? ' Ball' : ' Bälle') + ' gefangen!' + (rec ? '<br>Neuer Rekord!' : '<br>Rekord: ' + S.best.play);
   } else {
-    S.fun += Math.min(38, 14 + g.score * 2); S.energy -= 18; S.thirst -= 12; S.clean -= 10; S.counts.walks++;
+    const mins = g.t / 60; S.fun += Math.min(38, 14 + g.score * 2); S.energy -= Math.min(26, 10 + mins * 9); S.thirst -= Math.min(18, 8 + mins * 5); S.clean -= 10; S.counts.walks++;
     const rec = g.score > S.best.walk; if (rec) S.best.walk = g.score;
     msg = g.score + ' Leckerli gefunden!' + (rec ? '<br>Neuer Rekord!' : '<br>Rekord: ' + S.best.walk);
     if (S.pending.length || S.poops.length) {
