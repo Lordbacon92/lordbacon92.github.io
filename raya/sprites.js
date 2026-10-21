@@ -130,6 +130,16 @@ const SPR = {
     '.KBBBBBK.',
     '..KKKKK..',
   ]),
+  TUB: spr([
+    '..ww.w.ww...',
+    '.w..w.w..w..',
+    'KKKKKKKKKKKK',
+    'KSSSSSSSSSSK',
+    '.KSSSSSSSsK.',
+    '.KsSSSSSssK.',
+    '..KKKKKKKK..',
+    '..Yy....yY..',
+  ]),
   CHOC: spr([   // Schokoladentafel – für Hunde giftig!
     'KKKKKKKKK',
     'KMmMKMmMK',

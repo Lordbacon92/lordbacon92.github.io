@@ -348,10 +348,10 @@ const ACTIONS = [
   { id: 'walk', label: 'Gassi', icon: 'PAW', fn() { startGame('walk'); } },
   { id: 'play', label: 'Spielen', icon: 'BALL', fn() { startGame('play'); } },
   { id: 'pet', label: 'Kraulen', icon: 'HEART', fn() { pet(); } },
-  { id: 'brush', label: 'Bürsten', icon: 'BRUSH', fn() {
+  { id: 'brush', label: 'Baden', icon: 'TUB', fn() {
     if (asleepGuard()) return;
     if (S.clean > 95) { toast('Raya glänzt schon.'); play('nope', 0.6); return; }
-    S.clean += 30; S.fun += 2; play('brush', 2.2); sfx.good(); toast('Bürste, bürste …');
+    startBath();
   } },
   { id: 'clean', label: 'Putzen', icon: 'POOP', fn() {
     if (!S.poops.length) { toast('Hier ist alles sauber!'); return; }
@@ -399,7 +399,7 @@ function startGame(mode) {
 }
 function hud() {
   const el = $('#hud');
-  if (!G || G.paused) { el.hidden = true; return; }
+  if (!G || G.paused || G.mode === 'bath') { el.hidden = true; return; }
   el.hidden = false;
   const l = clamp(G.lives, 0, 3), lives = '♥'.repeat(l) + '♡'.repeat(3 - l);
   el.innerHTML = '<span>' + lives + '</span><span>' + (G.mode === 'walk' ? 'Leckerli ' : 'Bälle ') + G.score + '</span>';
@@ -523,14 +523,104 @@ function finishGame() {
   }
 }
 
+/* ================= Baden ================= */
+const BATH = { room: null, tub: null, front: null, foam: null };
+Promise.all(['bath-room', 'bath-tub', 'bath-tubfront', 'bath-foam'].map((n) => loadImg(n + '.png')))
+  .then(([r, t, f, fo]) => Object.assign(BATH, { room: r, tub: t, front: f, foam: fo })).catch(() => {});
+const TUB_X = 45, TUB_Y = 139, RAYA_FEET = 212, FOAM_Y = 150, BK = 1.5;   // Raya im Bad 1,5× groß
+function bathRaya() { const t = ATLAS.tiles.sit; return t ? t[t.length - 1] : null; }
+function startBath() {
+  if (busy()) return;
+  toastQ.length = 0; clearTimeout(toastTimer); toastTimer = 0; $('#toast').classList.remove('show');
+  const tile = bathRaya(); if (!tile) return;
+  const [sx, sy, w, h] = tile, x0 = Math.round(192 - w * BK / 2), y0 = RAYA_FEET - Math.round(h * BK);
+  // Flecken nur auf sichtbarem Fell oberhalb von Schaum/Wannenrand
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(ATLAS.img, sx, sy, w, h, 0, 0, w, h);
+  const px = cx.getImageData(0, 0, w, h).data;
+  const n = clamp(4 + Math.round((100 - S.clean) / 10), 4, 13), spots = [];
+  for (let tries = 0; spots.length < n && tries < 600; tries++) {
+    const lx = Math.round(rnd(5, w - 5)), ly = Math.round(rnd(12, (FOAM_Y + 6 - y0) / BK));
+    if (px[(ly * w + lx) * 4 + 3] < 200) continue;
+    const X = x0 + Math.round(lx * BK), Y = y0 + Math.round(ly * BK);
+    if (spots.some((p) => Math.hypot(p.x - X, p.y - Y) < 11)) continue;
+    const r = rnd(3.5, 6.5), pts = [];
+    for (let k = 0; k < 7; k++) pts.push([Math.round(rnd(-r, r)), Math.round(rnd(-r * 0.8, r * 0.8))]);
+    spots.push({ x: X, y: Y, r, a: 1, pts });
+  }
+  G = { mode: 'bath', paused: false, t: 0, spots, total: spots.length, bubbles: [], fx: -99, fy: -99, down: false, happyT: 0, score: 0 };
+  setGameUI('bath'); sfx.good(); updateUI();
+}
+function bathRub(x, y) {   // x, y in Bildschirmpixeln (384×288)
+  if (!G || G.mode !== 'bath') return;
+  const d = G.fx < 0 ? 0 : Math.hypot(x - G.fx, y - G.fy); G.fx = x; G.fy = y;
+  if (Math.random() < 0.6) G.bubbles.push({ x: x + rnd(-6, 6), y: y + rnd(-6, 6), r: rnd(1.5, 3.5), t: 0, life: rnd(0.6, 1.2), vy: rnd(-14, -4) });
+  for (let i = G.spots.length - 1; i >= 0; i--) {
+    const p = G.spots[i]; if (Math.hypot(p.x - x, p.y - y) > p.r + 9) continue;
+    p.a -= Math.max(0.04, d * 0.02);
+    if (p.a <= 0) {
+      G.spots.splice(i, 1); sfx.catch(); buzz(8); G.happyT = 0.6;
+      for (let k = 0; k < 4; k++) spark((p.x + rnd(-6, 6)) / 2, (p.y + rnd(-6, 6)) / 2);
+      if (!G.spots.length) { setTimeout(finishBath, 700); }
+    }
+  }
+}
+function updateBath(dt) {
+  G.t += dt; G.happyT -= dt;
+  for (let i = G.bubbles.length - 1; i >= 0; i--) { const b = G.bubbles[i]; b.t += dt; b.y += b.vy * dt; if (b.t > b.life) G.bubbles.splice(i, 1); }
+}
+function drawBath() {
+  ctx.save(); ctx.scale(0.5, 0.5);
+  if (BATH.room) ctx.drawImage(BATH.room, 0, 0); else { ctx.fillStyle = '#9fb7cc'; ctx.fillRect(0, 0, 384, 288); }
+  if (BATH.tub) ctx.drawImage(BATH.tub, TUB_X, TUB_Y);
+  const tile = bathRaya();
+  if (tile) {
+    const name = G.happyT > 0 || G.down ? 'sit-closed' : 'sit', t = ATLAS.tiles[name][ATLAS.tiles[name].length - 1];
+    const bob = Math.round(Math.sin(G.t * 2.2));
+    const dw = Math.round(t[2] * BK), dh = Math.round(t[3] * BK);
+    ctx.drawImage(ATLAS.img, t[0], t[1], t[2], t[3], Math.round(192 - dw / 2), RAYA_FEET - dh + bob, dw, dh);
+    // Flecken
+    for (const p of G.spots) {
+      ctx.globalAlpha = Math.max(0, p.a);
+      ctx.fillStyle = '#4a2e16';
+      for (const [dx, dy] of p.pts) ctx.fillRect(Math.round(p.x + dx - 1.5), Math.round(p.y + dy - 1.5 + bob), 3, 3);
+      ctx.fillStyle = '#6e4a24';
+      for (const [dx, dy] of p.pts) ctx.fillRect(Math.round(p.x + dx * 0.6 - 1), Math.round(p.y + dy * 0.6 - 1 + bob), 2, 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (BATH.foam) ctx.drawImage(BATH.foam, 0, 0, BATH.foam.width, 64, TUB_X + 22, FOAM_Y, 249, 44);
+  if (BATH.front) ctx.drawImage(BATH.front, TUB_X, TUB_Y);
+  // Seifenblasen unter dem Finger
+  for (const b of G.bubbles) {
+    const a = 1 - b.t / b.life; ctx.globalAlpha = a;
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#bfe4f7'; ctx.fillRect(Math.round(b.x - b.r * 0.5), Math.round(b.y - b.r * 0.5), 1, 1);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+function finishBath() {
+  if (!G || G.mode !== 'bath') return;
+  const g = G; G = null; setGameUI(null);
+  const share = 1 - g.spots.length / Math.max(1, g.total);
+  S.clean += Math.round(70 * share); S.fun += Math.round(6 * share); S.energy -= 3;
+  clampAll(); save();
+  placeFloor('start');
+  if (share >= 1) { sfx.good(); overlay('Blitzsauber!', 'Raya duftet wieder herrlich.<br>Pflege: ' + Math.round(S.clean) + ' %', 'Weiter', () => play('pet', 1.2)); }
+  else overlay('Badezeit vorbei', 'Ein paar Flecken sind geblieben.<br>Pflege: ' + Math.round(S.clean) + ' %', 'Weiter', () => {});
+  updateUI();
+}
+
 /* ---------- Bedienung während eines Minispiels ---------- */
 function setGameUI(mode) {
   document.body.classList.toggle('ingame', !!mode);
   const pad = $('#gamepad'); if (!pad) return;
   pad.hidden = !mode;
   $('#jumpBtn').hidden = mode !== 'walk';
-  $('#gameHint').textContent = mode === 'play' ? 'Zieh Raya über das Bild – fang Bälle, keine Schokolade!' : '';
-  $('#gameHint').hidden = mode !== 'play';
+  $('#gameHint').textContent = mode === 'play' ? 'Zieh Raya über das Bild – fang Bälle, keine Schokolade!' : mode === 'bath' ? 'Wisch die Flecken mit dem Finger weg!' : '';
+  $('#gameHint').hidden = mode !== 'play' && mode !== 'bath';
+  $('#quitBtn').textContent = mode === 'bath' ? 'Fertig' : 'Spiel beenden';
 }
 
 /* ================= UI aufbauen ================= */
@@ -561,7 +651,7 @@ function updateUI() {
     const v = S[k], n = Math.ceil(v / 10), col = v > 60 ? 'var(--good)' : v > 30 ? 'var(--mid)' : 'var(--bad)';
     statEls[k].forEach((el, i) => { el.className = i < n ? 'on' : ''; el.style.setProperty('--c', col); });
   }
-  $('#status').textContent = G ? (G.mode === 'walk' ? 'Gassi-Zeit!' : 'Fang den Ball!') : statusText();
+  $('#status').textContent = G ? (G.mode === 'walk' ? 'Gassi-Zeit!' : G.mode === 'bath' ? 'Badezeit!' : 'Fang den Ball!') : statusText();
   const days = Math.floor((Date.now() - S.born) / (24 * HOUR)) + 1;
   $('#age').textContent = 'Tag ' + days;
   const alerts = { vet: S.sick, clean: S.poops.length > 0, feed: S.hunger < 30, water: S.thirst < 30, light: S.sleeping || S.energy < 22, brush: S.clean < 30, play: S.fun < 30 };
@@ -582,12 +672,16 @@ cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const [x, y] = toLogical(e);
   if (G) {
-    if (G.mode === 'walk') jump(); else G.tx = x / 2;
+    if (G.mode === 'walk') jump(); else if (G.mode === 'bath') { G.down = true; G.fx = -99; bathRub(x, y); } else G.tx = x / 2;
     return;
   }
   sceneTap(x, y);
 });
-cv.addEventListener('pointermove', (e) => { if (G && G.mode === 'play' && (e.buttons || e.pointerType !== 'mouse')) G.tx = toLogical(e)[0] / 2; });
+cv.addEventListener('pointermove', (e) => {
+  if (G && G.mode === 'play' && (e.buttons || e.pointerType !== 'mouse')) G.tx = toLogical(e)[0] / 2;
+  if (G && G.mode === 'bath' && G.down) { const [x, y] = toLogical(e); bathRub(x, y); }
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => cv.addEventListener(t, () => { if (G && G.mode === 'bath') { G.down = false; G.fx = -99; } }));
 window.addEventListener('keydown', (e) => {
   if (!G || G.paused) return;
   if (G.mode === 'walk' && (e.code === 'Space' || e.code === 'ArrowUp')) { e.preventDefault(); jump(); }
@@ -652,8 +746,8 @@ function loop(ts) {
     if (before !== S.sleeping && !S.sleeping) play('wake', 1);
     flushNotes();
   }
-  if (G) updateGame(dt);
-  if (G) { ctx.save(); ctx.scale(2, 2); try { drawGame(); } finally { ctx.restore(); } }
+  if (G) { if (G.mode === 'bath') { updateBath(dt); tickParticles(dt); } else updateGame(dt); }
+  if (G) { ctx.save(); ctx.scale(2, 2); try { if (G.mode === 'bath') { drawBath(); drawParticles(); } else drawGame(); } finally { ctx.restore(); } }
   if (!G) { sceneUpdate(dt); sceneDraw(); }
   if (uiT > 0.5) { uiT = 0; updateUI(); }
 }
@@ -685,7 +779,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => jb.addEventListener(t, () => jb.classList.remove('down')));
     jb.addEventListener('contextmenu', (e) => e.preventDefault());
   }
-  if (qb) qb.addEventListener('click', () => { if (G) { G.paused = false; $('#overlay').hidden = true; finishGame(); } });
+  if (qb) qb.addEventListener('click', () => { if (!G) return; if (G.mode === 'bath') { finishBath(); return; } G.paused = false; $('#overlay').hidden = true; finishGame(); });
 })();
 
 /* Vollbild-Knopf (nur wo der Browser es kann und nicht schon als App läuft) */
